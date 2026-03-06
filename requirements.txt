@@ -18,3 +18,4 @@ neo4j~=5.28
 sentence_transformers
 aiohttp
 aiolimiter
+odfpy

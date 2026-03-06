@@ -44,6 +44,17 @@ def clean_document(doc: dict, remove_ts: bool = False):
     return clean_doc, removed_keys
 
 
+def clean_documents(docs: list, remove_ts: bool = False):
+    """
+    Applies 'clean_document' to multiple documents in a list.
+    """
+    clean_docs = []
+    for doc in docs:
+        clean_doc, _ = clean_document(doc=doc, remove_ts=remove_ts)
+        clean_docs.append(clean_doc)
+    return clean_docs
+
+
 def to_datetime(date_string, verbose=True):
     """
     Converts a date string to a datetime object.
