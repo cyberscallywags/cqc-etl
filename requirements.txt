@@ -18,4 +18,5 @@ neo4j~=5.28
 sentence_transformers
 aiohttp
 aiolimiter
-odfpy
+pyexcel
+pyexcel-ods

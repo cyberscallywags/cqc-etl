@@ -1,8 +1,11 @@
 """Connection utility functions"""
 
 # Imports
+import os
 import time
 import functools
+
+import duckdb
 from neo4j import GraphDatabase, AsyncGraphDatabase
 from neo4j.exceptions import (
     AuthError, ServiceUnavailable, DatabaseUnavailable,
@@ -13,7 +16,7 @@ from requests.exceptions import (
     HTTPError
 )
 from loguru import logger
-from src.config import neo4j_uri, neo4j_user, neo4j_pwd
+from src.config import neo4j_uri, neo4j_user, neo4j_pwd, INTERIM_DATA_DIR
 
 
 class AuraDB:
@@ -51,6 +54,23 @@ class AuraDB:
         except (ServiceUnavailable, AuthError) as e:
             logger.error(f"Failed to connect to AuraDB: {e}")
             raise
+
+
+def connect_duckdb():
+    """Create/connect to local DuckDB database and return connection."""
+    try:
+        os.makedirs(INTERIM_DATA_DIR, exist_ok=True)
+        con = duckdb.connect(INTERIM_DATA_DIR / "cqc.duckdb")
+        logger.info("Connected to CQC DuckDB database.")
+        return con
+
+    except duckdb.Error as e:
+        logger.error(f"DuckDB connection failed: {e}")
+        raise
+
+    except OSError as e:
+        logger.error(f"Failed to prepare data directory: {e}")
+        raise
 
 
 RETRYABLE_ERRORS = (

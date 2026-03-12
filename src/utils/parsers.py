@@ -4,6 +4,8 @@
 from datetime import datetime
 from loguru import logger
 import numpy as np
+import pandas as pd
+
 
 def decompose_list(lst: list, separator: str) -> list:
     """
@@ -19,40 +21,68 @@ def decompose_list(lst: list, separator: str) -> list:
 
     return new_lst
 
-def clean_document(doc: dict, remove_ts: bool = False):
-    """
-    Removes keys with None, np.nan, 'nan', 'NaT', empty lists, or empty strings from a document.
-    Also removes 'full_hash' and 'id_hash'. Optionally removes 'updated_at'.
-    """
-    # Keys to always remove
-    keys_to_remove = {"full_hash", "id_hash"}
 
-    # Optionally remove updated_at
+def normalise_value(v):
+    """Normalise values."""
+    # ndarray
+    if isinstance(v, np.ndarray):
+        return v.tolist()
+
+    # datetime
+    if isinstance(v, datetime):
+        return v.isoformat()
+    return v
+
+
+def is_empty_value(v):
+    """Check for empty/invalid values."""
+    # None
+    if v is None:
+        return True
+
+    # Empty string, "NA" or "-"
+    if isinstance(v, str) and v in ("", "-", "NA", "N/A"):
+        return True
+
+    # Empty list/dict/tuple
+    if isinstance(v, (list, tuple, dict, set)):
+        return len(v) == 0
+
+    # Only call pd.isna on non-container values
+    if not isinstance(v, (list, tuple, dict, set, np.ndarray, pd.Series)):
+        return pd.isna(v)
+
+    return False
+
+
+def clean_document(doc: dict, remove_ts: bool = False, return_removed=True):
+    """
+    Removes keys with empty values from a document.
+    Also removes 'full_hash' and 'id_hash'. Optionally removes 'updated_at'.
+    Returns cleaned document or cleaned document and removed keys.
+    """
+    keys_to_remove = {"full_hash", "id_hash"}
     if remove_ts:
         keys_to_remove.add("updated_at")
 
     clean_doc = {
-        k: v for k, v in doc.items()
-        if v is not None and v != np.nan and v != 'nan' and v != 'NaT' and v != [] and v != ''
-        and k not in keys_to_remove
+        k: normalise_value(v)
+        for k, v in doc.items()
+        if k not in keys_to_remove and not is_empty_value(v)
     }
 
-    old_keys = list(doc.keys())
-    new_keys = list(clean_doc.keys())
-    removed_keys = [k for k in old_keys if k not in new_keys]
+    if return_removed:
+        removed_keys = [k for k in doc if k not in clean_doc]
+        return clean_doc, removed_keys
 
-    return clean_doc, removed_keys
+    return clean_doc
 
 
 def clean_documents(docs: list, remove_ts: bool = False):
     """
     Applies 'clean_document' to multiple documents in a list.
     """
-    clean_docs = []
-    for doc in docs:
-        clean_doc, _ = clean_document(doc=doc, remove_ts=remove_ts)
-        clean_docs.append(clean_doc)
-    return clean_docs
+    return [clean_document(doc, remove_ts=remove_ts, return_removed=False) for doc in docs]
 
 
 def to_datetime(date_string, verbose=True):

@@ -1,152 +1,75 @@
 """Transform CQC directory data"""
 
 # Imports
-from datetime import datetime
-import pandas as pd
+import time
+import shutil
+import datetime
 from loguru import logger
-from src.utils.parsers import decompose_list
-from src.utils.transforms import combine_csvs, make_documents
-from src.config import RAW_DATA_DIR, PROCESSED_DATA_DIR
-
-# Create timestamp
-timestamp = datetime.now()
-
-# Create and clean dataframe
-df = combine_csvs(RAW_DATA_DIR / "directory")
-df.columns = [
-    "name", "aka", "address", "postcode", "phone_no",
-    "url", "service_types", "latest_check_date", "services",
-    "provider", "local_authority", "region",
-    "location_url", "location_id", "provider_id"
-    ]
-df["latest_check_date"] = pd.to_datetime(df["latest_check_date"])
-df["phone_no"] = df["phone_no"].astype(str).apply(lambda x:""if x=="nan" else f"0{x.split(".")[0]}")
-df["url"] = df["url"].fillna("")
-for col in df.columns:
-    if df[col].dtype == str:
-        df[col] = df[col].apply(lambda x: x.strip())
-
-logger.info("Dataframe cleaning complete.")
+from src.utils.queries import QUERIES
+from src.utils.connectors import connect_duckdb
+from src.utils.transforms import create_dfs, run_queries, export_tables
+from src.config import RAW_DATA_DIR, CORE_DATA_DIR, PROCESSED_DATA_DIR, INTERIM_DATA_DIR
 
 
-# Define transform specifications
-transform_specs = {
-    "regions": {
-        "data": lambda df: (
-            df[["region"]]
-            .drop_duplicates()
-            .sort_values(by=["region"])
-            .reset_index(drop=True)
-            .rename_axis("_id")
-            .reset_index()
-            ),
-        "properties": lambda doc: {
-            "_id": doc["_id"],
-            "name": doc["region"],
-            "updated_at": doc["updated_at"]
-            }
-    },
-    "local_authorities": {
-        "data": lambda df: (
-            df[["local_authority", "region"]]
-            .dropna(subset=["local_authority"]).drop_duplicates()
-            .sort_values(by=["region", "local_authority"])
-            .reset_index(drop=True)
-            .rename_axis("_id")
-            .reset_index()
-            ),
-        "properties": lambda doc: {
-            "_id": doc["_id"],
-            "name": doc["local_authority"],
-            "region": doc["region"],
-            "updated_at": doc["updated_at"]
-            },
-    },
-    "postcodes": {
-        "data": lambda df: (
-            df[["postcode", "local_authority", "region"]]
-            .dropna(subset=["postcode"]).drop_duplicates()
-            .sort_values(by=["region", "local_authority"])
-            .reset_index(drop=True)
-            .rename_axis("_id")
-            .reset_index()
-            ),
-        "properties": lambda doc: {
-            "_id": doc["_id"],
-            "postcode": doc["postcode"],
-            "local_authority": doc["local_authority"],
-            "region": doc["region"],
-            "updated_at": doc["updated_at"]
-            }
-        },
-    "providers": {
-        "data": lambda df: (
-            df[["provider", "provider_id"]]
-            .dropna(subset=["provider"]).drop_duplicates()
-            .sort_values(by=["provider"])
-        ),
-        "properties": lambda doc: {
-            "_id": doc["provider_id"],
-            "name": doc["provider"],
-            "updated_at": doc["updated_at"]
-            }
-        },
-    "locations": {
-        "data": lambda df: (
-            df
-            .dropna(subset=["location_id", "provider_id"]).drop_duplicates()
-            .sort_values(by=["region", "name"])
-        ),
-        "properties": lambda doc: {
-            "_id": doc["location_id"].strip(),
-            "name": doc["name"].strip(),
-            "address": ", ".join([i.strip() for i in doc["address"].split(",") if i.strip()]),
-            "postcode": doc["postcode"].strip(),
-            "phone_no": doc["phone_no"].strip(),
-            "url": doc["url"],
-            "services": sorted({s.strip() for s in str(doc["services"]).split("|")}),
-            "service_types": sorted({s.strip() for s in str(doc["service_types"]).split("|")}),
-            "provider": doc["provider"].strip(),
-            "provider_id": doc["provider_id"].strip(),
-            "cqc_url": doc["location_url"].strip(),
-            "latest_check_date": doc["latest_check_date"].isoformat(),
-            "updated_at": doc["updated_at"]
-            }
-        },
-    "services": {
-        "data": lambda df: (
-            pd.DataFrame(decompose_list(list(df["services"].unique()), "|"), columns=["name"])
-            .sort_values(by="name")
-            .reset_index(drop=True)
-            .rename_axis("_id")
-            .reset_index()
-        ),
-        "properties": lambda doc: {
-            "_id": doc["_id"],
-            "name": doc["name"],
-            "updated_at": doc["updated_at"]
-            }
-        },
-    "service_types": {
-        "data": lambda df: (
-            pd.DataFrame(decompose_list(list(df["service_types"].unique()), "|"), columns=["name"])
-            .sort_values(by="name")
-            .reset_index(drop=True)
-            .rename_axis("_id")
-            .reset_index()
-        ),
-        "properties": lambda doc: {
-            "_id": doc["_id"],
-            "name": doc["name"],
-            "updated_at": doc["updated_at"]
-            }
-        },
+file_registry = {
+    "onspd": CORE_DATA_DIR / "onspd",
+    "directory": RAW_DATA_DIR / "18_February_2026_CQC_directory.csv",
+    "ratings": RAW_DATA_DIR / "01_February_2026_Latest_ratings.ods",
+    "counties": CORE_DATA_DIR / "lookups/CTY County names and codes UK as at 05_25.csv",
+    "la_districts": CORE_DATA_DIR / "lookups/LAD_MAY_2025_UK_BUC_4725703192843186948.csv",
+    "regions": CORE_DATA_DIR / "lookups/RGN Region names and codes EN as at 05_25.csv",
+    "nhser": CORE_DATA_DIR / "lookups/NHSER NHS England Region names and codes EN as at 04_24.csv",
 }
 
+
+onspd_lookups = {
+    "ctycd": "counties",
+    "ladcd": "la_districts",
+    "rgncd": "regions",
+    "nhsercd": "nhser",
+}
+
+
+TABLES_TO_EXPORT = [
+    # Main
+    "locations",
+    "providers",
+    "location_ratings",
+    "provider_ratings",
+
+    # Geospatial
+    "postcodes",
+    "counties",
+    "local_authorities",
+    "regions",
+    "nhser",
+
+    # Ancillary
+    "service_types",
+    "service_groups",
+    "services",
+]
+
+
 if __name__ == "__main__":
-    make_documents(
-        df=df,
-        transform_specs=transform_specs,
-        ts=timestamp,
-        output_dir=PROCESSED_DATA_DIR
-        )
+    start = time.perf_counter()
+    started_at = datetime.datetime.now().isoformat()
+    logger.info(f"Started transformation pipeline. Time: {started_at}")
+
+    # Create timestamp
+    timestamp = datetime.datetime.now().isoformat()
+
+    # Connect to DuckDB and execute queries
+    con = connect_duckdb()
+    create_dfs(con, file_registry, CORE_DATA_DIR / "schema/schema_01.json")
+    run_queries(con, QUERIES)
+    export_tables(con, TABLES_TO_EXPORT, PROCESSED_DATA_DIR, timestamp)
+    con.close()
+
+    # Delete temp directory
+    shutil.rmtree(INTERIM_DATA_DIR, ignore_errors=True)
+    logger.info(f"Deleted interim directory: {INTERIM_DATA_DIR}")
+
+
+    end = time.perf_counter()
+    logger.success(f"Transformation pipeline complete. Runtime: {end - start} seconds")
