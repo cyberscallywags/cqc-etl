@@ -1,15 +1,21 @@
 """DuckDB data transformation queries"""
 
+# pylint: disable=C0301
+
 QUERIES = [
     # Raw tables
     "CREATE OR REPLACE TABLE onspd_raw AS SELECT * FROM onspd_df",
-    "CREATE OR REPLACE TABLE counties AS SELECT * FROM counties_df",
-    "CREATE OR REPLACE TABLE la_districts AS SELECT * FROM la_districts_df",
-    "CREATE OR REPLACE TABLE regions AS SELECT * FROM regions_df",
-    "CREATE OR REPLACE TABLE nhser AS SELECT * FROM nhser_df",
+    "CREATE OR REPLACE TABLE la_districts_raw AS SELECT * FROM la_districts_df",
+    "CREATE OR REPLACE TABLE counties_raw AS SELECT * FROM counties_df",
+    "CREATE OR REPLACE TABLE icbs_raw AS SELECT * FROM icbs_df",
+    "CREATE OR REPLACE TABLE regions_raw AS SELECT * FROM regions_df",
+    "CREATE OR REPLACE TABLE nhser_raw AS SELECT * FROM nhser_df",
     "CREATE OR REPLACE TABLE directory_raw AS SELECT * FROM directory_df",
     "CREATE OR REPLACE TABLE locations_raw AS SELECT * FROM locations_df",
     "CREATE OR REPLACE TABLE providers_raw AS SELECT * FROM providers_df",
+    "CREATE OR REPLACE TABLE lad_pop_raw AS SELECT * FROM lad_pop_df",
+
+    # LOCATIONS AND PROVIDERS
 
     # Cleaned directory table
     """
@@ -17,7 +23,7 @@ QUERIES = [
     SELECT
         _id,
         name,
-        regexp_replace(address, '\\s*,\\s*', ', ') AS address,
+        address,
         postcode,
         CASE
             WHEN phoneNo IS NULL THEN NULL
@@ -112,7 +118,7 @@ QUERIES = [
     CREATE OR REPLACE TABLE location_ratings AS
     WITH base AS (
         SELECT
-            _id,
+            _id AS locationId,
             serviceGroup,
             reportType,
             inheritedRating,
@@ -127,7 +133,7 @@ QUERIES = [
         SELECT *
         FROM (
             SELECT
-                _id,
+                _id AS locationId,
                 serviceGroup,
                 domain,
                 latestRating
@@ -147,7 +153,8 @@ QUERIES = [
         )
     )
     SELECT
-        b._id,
+        uuid() AS _id,
+        b.locationId,
         b.reportType,
         b.serviceGroup,
         p.ratingSafe,
@@ -159,7 +166,7 @@ QUERIES = [
         b.inheritedRating,
         b.publicationDate
     FROM base b
-    LEFT JOIN pivoted p USING (_id, serviceGroup);
+    LEFT JOIN pivoted p USING (locationId, serviceGroup);
     """,
 
     # Cleaned providers table
@@ -238,7 +245,7 @@ QUERIES = [
     CREATE OR REPLACE TABLE provider_ratings AS
     WITH base AS (
         SELECT
-            _id,
+            _id AS providerId,
             serviceGroup,
             reportType,
             inheritedRating,
@@ -253,7 +260,7 @@ QUERIES = [
         SELECT *
         FROM (
             SELECT
-                _id,
+                _id AS providerId,
                 serviceGroup,
                 domain,
                 latestRating
@@ -273,7 +280,8 @@ QUERIES = [
         )
     )
     SELECT
-        b._id,
+        uuid() AS _id,
+        b.providerId,
         b.reportType,
         b.serviceGroup,
         p.ratingSafe,
@@ -285,87 +293,7 @@ QUERIES = [
         b.inheritedRating,
         b.publicationDate
     FROM base b
-    LEFT JOIN pivoted p USING (_id, serviceGroup);
-    """,
-
-    # Full ONSPD table
-    """
-    CREATE OR REPLACE TABLE onspd AS
-    SELECT o.*,
-        t_counties.name AS ctynm,
-        t_la_districts.name AS ladnm,
-        t_regions.name AS rgnnm,
-        t_nhser.name AS nhsernm
-    FROM onspd_raw o
-    LEFT JOIN counties t_counties ON o.ctycd = t_counties.code
-    LEFT JOIN la_districts t_la_districts ON o.ladcd = t_la_districts.code
-    LEFT JOIN regions t_regions ON o.rgncd = t_regions.code
-    LEFT JOIN nhser t_nhser ON o.nhsercd = t_nhser.code
-    """,
-
-    # Postcodes table
-    """
-    CREATE OR REPLACE TABLE postcodes AS
-    WITH postcodes_unique AS (
-        SELECT postcode FROM locations WHERE postcode IS NOT NULL
-        UNION
-        SELECT postcode FROM providers WHERE postcode IS NOT NULL
-    )
-    SELECT DISTINCT
-        u.postcode,
-        o.ctycd,
-        o.ctynm AS county,
-        o.ladcd,
-        o.ladnm AS localAuthority,
-        o.rgncd,
-        o.rgnnm AS region,
-        o.nhsercd,
-        o.nhsernm AS nhsEnglandRegion,
-        o.lat,
-        o.long
-    FROM postcodes_unique u
-    LEFT JOIN onspd o
-        ON o.pcds = u.postcode;
-    """,
-
-    # Final counties table
-    """
-    CREATE OR REPLACE TABLE counties AS
-    SELECT DISTINCT
-        ctycd AS code,
-        county AS name
-    FROM postcodes
-    WHERE ctycd IS NOT NULL;
-    """,
-
-    # Final local authorities table
-    """
-    CREATE OR REPLACE TABLE local_authorities AS
-    SELECT DISTINCT
-        ladcd AS code,
-        localAuthority AS name
-    FROM postcodes
-    WHERE ladcd IS NOT NULL;
-    """,
-
-    # Final regions table
-    """
-    CREATE OR REPLACE TABLE regions AS
-    SELECT DISTINCT
-        rgncd AS code,
-        region AS name
-    FROM postcodes
-    WHERE rgncd IS NOT NULL;
-    """,
-
-    # Final NHSER table
-    """
-    CREATE OR REPLACE TABLE nhser AS
-    SELECT DISTINCT
-        nhsercd AS code,
-        nhsEnglandRegion AS name
-    FROM postcodes
-    WHERE nhsercd IS NOT NULL;
+    LEFT JOIN pivoted p USING (providerId, serviceGroup);
     """,
 
     # Services table
@@ -433,4 +361,204 @@ QUERIES = [
     )
     ORDER BY name;
     """,
+
+    # Organisation types table
+    """
+    CREATE OR REPLACE TABLE org_types AS
+    WITH org_types_raw AS (
+        SELECT type FROM locations WHERE type IS NOT NULL
+        UNION
+        SELECT type FROM providers WHERE type IS NOT NULL
+    )
+    SELECT
+        'ot' || LPAD(CAST(ROW_NUMBER() OVER (ORDER BY type) AS VARCHAR), 2, '0') AS _id,
+        type AS name
+    FROM (
+        SELECT DISTINCT type
+        FROM org_types_raw
+    )
+    ORDER BY name;
+    """,
+
+    # Inspection categories table
+    """
+    CREATE OR REPLACE TABLE inspection_categories AS
+    WITH inspection_categories_raw AS (
+        SELECT primaryInspectionCategory FROM locations WHERE primaryInspectionCategory IS NOT NULL
+        UNION
+        SELECT primaryInspectionCategory FROM providers WHERE primaryInspectionCategory IS NOT NULL
+    )
+    SELECT
+        'ic' || LPAD(CAST(ROW_NUMBER() OVER (ORDER BY primaryInspectionCategory) AS VARCHAR), 2, '0') AS _id,
+        primaryInspectionCategory AS name
+    FROM (
+        SELECT DISTINCT primaryInspectionCategory
+        FROM inspection_categories_raw
+    )
+    ORDER BY name;
+    """,
+
+    # Report types table
+    """
+    CREATE OR REPLACE TABLE report_types AS
+    WITH report_types_raw AS (
+        SELECT reportType FROM location_ratings WHERE reportType IS NOT NULL
+        UNION
+        SELECT reportType FROM provider_ratings WHERE reportType IS NOT NULL
+    )
+    SELECT
+        'rt' || LPAD(CAST(ROW_NUMBER() OVER (ORDER BY reportType) AS VARCHAR), 2, '0') AS _id,
+        reportType AS name
+    FROM (
+        SELECT DISTINCT reportType
+        FROM report_types_raw
+    )
+    ORDER BY name;
+    """,
+
+    # Brands table
+    """
+    CREATE OR REPLACE TABLE brands AS
+    WITH brands_unique AS (
+        SELECT brandId, brandName
+        FROM locations_raw
+        WHERE brandId IS NOT NULL AND brandId <> '-'
+        
+        UNION
+        
+        SELECT brandId, brandName
+        FROM providers_raw
+        WHERE brandId IS NOT NULL AND brandId <> '-'
+    )
+    SELECT
+        brandId AS _id,
+        regexp_replace(brandName, '^BRAND ', '') AS name
+    FROM brands_unique
+    ORDER BY _id;
+    """,
+
+    # GEOSPATIAL
+
+    # Filtered ONSPD table
+    """
+    CREATE OR REPLACE TABLE onspd_filtered AS
+    WITH postcodes_unique AS (
+        SELECT postcode FROM locations WHERE postcode IS NOT NULL
+        UNION
+        SELECT postcode FROM providers WHERE postcode IS NOT NULL
+    )
+    SELECT o.*
+    FROM onspd_raw o
+    JOIN postcodes_unique u
+        ON o.pcds = u.postcode;
+    """,
+
+    # Full ONSPD table
+    """
+    CREATE OR REPLACE TABLE onspd AS
+    SELECT f.*,
+        lad.name AS ladnm,
+        lad.lat AS lad_lat,
+        lad.long AS lad_long,
+        cty.name AS ctynm,
+        icb.name AS icbnm,
+        rgn.name AS rgnnm,
+        nhs.name AS nhsernm
+    FROM onspd_filtered f
+    LEFT JOIN la_districts_raw lad ON f.ladcd = lad.code
+    LEFT JOIN counties_raw cty ON f.ctycd = cty.code
+    LEFT JOIN icbs_raw icb ON f.icbcd = icb.code
+    LEFT JOIN regions_raw rgn ON f.rgncd = rgn.code
+    LEFT JOIN nhser_raw nhs ON f.nhsercd = nhs.code;
+    """,
+
+    # Postcodes table
+    """
+    CREATE OR REPLACE TABLE postcodes AS
+    SELECT DISTINCT
+        pcds AS _id,
+        ladcd,
+        lat,
+        long
+    FROM onspd;
+    """,
+
+    # Final local authorities table
+    """
+    CREATE OR REPLACE TABLE local_authorities AS
+    SELECT DISTINCT
+        ladcd AS _id,
+        ladnm AS name,
+        ctycd,
+        rgncd,
+        icbcd,
+        nhsercd,
+        lad_lat as lat,
+        lad_long as long,
+    FROM onspd
+    WHERE ladcd IS NOT NULL;
+    """,
+
+    # Final counties table
+    """
+    CREATE OR REPLACE TABLE counties AS
+    SELECT DISTINCT
+        ctycd AS _id,
+        ctynm AS name,
+        rgncd
+    FROM onspd
+    WHERE ctycd IS NOT NULL;
+    """,
+
+    # Final ICBs table
+    """
+    CREATE OR REPLACE TABLE icbs AS
+    SELECT DISTINCT
+        icbcd AS _id,
+        icbnm AS name
+    FROM onspd
+    WHERE icbcd IS NOT NULL;
+    """,
+
+    # Final regions table
+    """
+    CREATE OR REPLACE TABLE regions AS
+    SELECT DISTINCT
+        rgncd AS _id,
+        rgnnm AS name
+    FROM onspd
+    WHERE rgncd IS NOT NULL;
+    """,
+
+    # Final NHSER table
+    """
+    CREATE OR REPLACE TABLE nhser AS
+    SELECT DISTINCT
+        nhsercd AS _id,
+        nhsernm AS name
+    FROM onspd
+    WHERE nhsercd IS NOT NULL;
+    """,
+
+    # Local authority by population
+    """
+    CREATE OR REPLACE TABLE lad_populations AS
+    SELECT
+        uuid() AS _id,
+        la._id AS ladcd,
+        pop.YEAR AS year,
+        pop.TOTAL AS totalPopulation,
+        pop."50-54",
+        pop."55-59",
+        pop."60-64",
+        pop."65-69",
+        pop."70-74",
+        pop."75-79",
+        pop."80-84",
+        pop."85-89",
+        pop."90+"
+    FROM lad_pop_raw pop
+    JOIN local_authorities la
+        ON la._id = pop.code;
+        """,
 ]

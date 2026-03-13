@@ -1,6 +1,7 @@
 """Parsing utility functions"""
 
 # Imports
+import uuid
 from datetime import datetime
 from loguru import logger
 import numpy as np
@@ -31,6 +32,11 @@ def normalise_value(v):
     # datetime
     if isinstance(v, datetime):
         return v.isoformat()
+
+    # uuid
+    if isinstance(v, uuid.UUID):
+        return str(v)
+
     return v
 
 

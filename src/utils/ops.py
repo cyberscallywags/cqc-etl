@@ -3,6 +3,7 @@
 # Imports
 from loguru import logger
 
+
 def upsert_nodes(tx, label, rows, id_field="_id"):
     """Generic AuraDB upsert function"""
     query = f"""
@@ -22,7 +23,43 @@ def clear_all_nodes(driver):
     logger.info("All nodes and relationships cleared.")
 
 
-def create_relationships(tx, rel_map, rel: str, source_docs):
+def create_relationships(tx, rel_map: dict, datasets: dict):
+    """
+    Create relationship between two labels
+    while pruning old relationships for the updated batch.
+    """
+    # Extract node labels, fields, relationship type
+    source_label, source_prop = rel_map["from"].items()
+    target_label, target_prop = rel_map["to"].items()
+    rel = rel_map["type"]
+
+    # Extract updated source _ids
+    source_docs = datasets[rel_map["data"]]
+    updated_ids = [i["_id"] for i in source_docs]
+
+    if not updated_ids:
+        return
+
+    # Delete only the specific relationship type for nodes being updated
+    query = f"""
+    MATCH (source:{source_label})
+    WHERE source._id IN $ids
+    OPTIONAL MATCH (source)-[old_rel:{rel}]->()
+    DELETE old_rel
+    WITH source
+    WHERE source.{source_prop} IS NOT NULL
+    UNWIND source.{source_prop} AS value
+    MATCH (target:{target_label} {{{target_prop}: value}})
+    MERGE (source)-[:{rel}]->(target)
+    RETURN count(*) AS relationships_created
+    """
+
+    result = tx.run(query, ids=updated_ids)
+    count = result.single()["relationships_created"]
+    logger.info(f"Created {count} relationships of type {rel}")
+
+
+def create_relationships2(tx, rel_map, rel: str, source_docs):
     """
     Create relationship between two labels
     while pruning old relationships for the updated batch.
@@ -54,6 +91,7 @@ def create_relationships(tx, rel_map, rel: str, source_docs):
     result = tx.run(query, ids=updated_ids)
     count = result.single()["relationships_created"]
     logger.info(f"Created {count} relationships of type {rel}")
+
 
 def get_relationships(data):
     """Return relationship mapping."""
