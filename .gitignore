@@ -215,8 +215,8 @@ _template/
 _deprecated/
 secrets/
 data/raw
-data/processed
 data/interim
+data/archive
 modeling/
 _deprecated/
 _testing/

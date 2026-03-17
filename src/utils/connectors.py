@@ -6,7 +6,7 @@ import time
 import functools
 
 import duckdb
-from neo4j import GraphDatabase, AsyncGraphDatabase
+from neo4j import GraphDatabase, AsyncGraphDatabase, AsyncDriver
 from neo4j.exceptions import (
     AuthError, ServiceUnavailable, DatabaseUnavailable,
     TransientError, SessionExpired
@@ -43,7 +43,7 @@ class AuraDB:
             raise
 
     # Async connection
-    async def connect_async(self):
+    async def connect_async(self) -> AsyncDriver:
         """Create async driver."""
         try:
             self.driver = AsyncGraphDatabase.driver(self.uri, auth=self.auth)

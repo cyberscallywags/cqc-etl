@@ -1,0 +1,17 @@
+[
+  {
+    "_id": "rt01",
+    "name": "CoreService",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "rt02",
+    "name": "Location",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "rt03",
+    "name": "Provider",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  }
+]

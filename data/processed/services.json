@@ -1,0 +1,62 @@
+[
+  {
+    "_id": "s01",
+    "name": "Caring for adults over 65 yrs",
+    "updated_at": "2026-03-13T21:49:16.391410"
+  },
+  {
+    "_id": "s02",
+    "name": "Caring for adults under 65 yrs",
+    "updated_at": "2026-03-13T21:49:16.391410"
+  },
+  {
+    "_id": "s03",
+    "name": "Caring for children (0 - 18yrs)",
+    "updated_at": "2026-03-13T21:49:16.391410"
+  },
+  {
+    "_id": "s04",
+    "name": "Caring for people whose rights are restricted under the Mental Health Act",
+    "updated_at": "2026-03-13T21:49:16.391410"
+  },
+  {
+    "_id": "s05",
+    "name": "Dementia",
+    "updated_at": "2026-03-13T21:49:16.391410"
+  },
+  {
+    "_id": "s06",
+    "name": "Eating disorders",
+    "updated_at": "2026-03-13T21:49:16.391410"
+  },
+  {
+    "_id": "s07",
+    "name": "Learning disabilities",
+    "updated_at": "2026-03-13T21:49:16.391410"
+  },
+  {
+    "_id": "s08",
+    "name": "Mental health conditions",
+    "updated_at": "2026-03-13T21:49:16.391410"
+  },
+  {
+    "_id": "s09",
+    "name": "Physical disabilities",
+    "updated_at": "2026-03-13T21:49:16.391410"
+  },
+  {
+    "_id": "s10",
+    "name": "Sensory impairments",
+    "updated_at": "2026-03-13T21:49:16.391410"
+  },
+  {
+    "_id": "s11",
+    "name": "Services for everyone",
+    "updated_at": "2026-03-13T21:49:16.391410"
+  },
+  {
+    "_id": "s12",
+    "name": "Substance misuse problems",
+    "updated_at": "2026-03-13T21:49:16.391410"
+  }
+]

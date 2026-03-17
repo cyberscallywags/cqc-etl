@@ -1,7 +1,17 @@
 """Neo4j AuraDB utlity functions"""
 
 # Imports
+import asyncio
+from functools import wraps
 from loguru import logger
+
+
+def asyncify(func):
+    """Make a function asynchronous."""
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        return await asyncio.to_thread(func, *args, **kwargs)
+    return wrapper
 
 
 def upsert_nodes(tx, label, rows, id_field="_id"):
@@ -91,24 +101,3 @@ def create_relationships2(tx, rel_map, rel: str, source_docs):
     result = tx.run(query, ids=updated_ids)
     count = result.single()["relationships_created"]
     logger.info(f"Created {count} relationships of type {rel}")
-
-
-def get_relationships(data):
-    """Return relationship mapping."""
-
-    rel_maps = [
-        ({"labels": ["Location", "Provider"], "props": ["provider_id", "id"]},
-         "HAS_PROVIDER", data["locations"]),
-        ({"labels": ["Location", "Postcode"], "props": ["postcode", "postcode"]},
-         "IN_POSTCODE", data["locations"]),
-        ({"labels": ["Location", "ServiceType"], "props": ["service_types", "name"]},
-         "HAS_SERVICE_TYPE", data["locations"]),
-        ({"labels": ["Location", "Service"], "props": ["services", "name"]},
-         "HAS_SERVICE", data["locations"]),
-        ({"labels": ["Postcode", "LocalAuthority"], "props": ["local_authority", "name"]},
-         "IN_LA", data["postcodes"]),
-        ({"labels": ["LocalAuthority", "Region"], "props": ["region", "name"]},
-         "IN_REGION", data["local_authorities"]),
-    ]
-
-    return rel_maps

@@ -1,0 +1,117 @@
+[
+  {
+    "_id": "ic01",
+    "name": "Acute hospital - Independent non-specialist",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic02",
+    "name": "Acute hospital - Independent specialist",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic03",
+    "name": "Acute hospital - NHS non-specialist",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic04",
+    "name": "Acute hospital - NHS specialist",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic05",
+    "name": "Ambulance service",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic06",
+    "name": "Community based adult social care services",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic07",
+    "name": "Community health - NHS & Independent",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic08",
+    "name": "Community substance misuse",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic09",
+    "name": "Dentists",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic10",
+    "name": "GP Practices",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic11",
+    "name": "Hospice services",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic12",
+    "name": "Independent consulting doctors",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic13",
+    "name": "Mental health - community & hospital - independent",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic14",
+    "name": "Mental health - community & residential - NHS",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic15",
+    "name": "No Primary Ticked",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic16",
+    "name": "Out of hours",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic17",
+    "name": "Prison Healthcare",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic18",
+    "name": "Remote clinical advice",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic19",
+    "name": "Residential social care",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic20",
+    "name": "Residential substance misuse",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic21",
+    "name": "Slimming Clinics",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic22",
+    "name": "Unspecified",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "ic23",
+    "name": "Urgent care services & mobile doctors",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  }
+]

@@ -1,0 +1,200 @@
+[
+  {
+    "_id": "E10000016",
+    "name": "Kent",
+    "rgncd": "E12000008",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E99999999",
+    "name": "(pseudo) England (UA/MD/LB)",
+    "rgncd": "E12000004",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000014",
+    "name": "Hampshire",
+    "rgncd": "E12000008",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000024",
+    "name": "Nottinghamshire",
+    "rgncd": "E12000004",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "M99999999",
+    "name": "(pseudo) Isle of Man",
+    "rgncd": "M99999999",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000034",
+    "name": "Worcestershire",
+    "rgncd": "E12000005",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E99999999",
+    "name": "(pseudo) England (UA/MD/LB)",
+    "rgncd": "E12000002",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E99999999",
+    "name": "(pseudo) England (UA/MD/LB)",
+    "rgncd": "E12000007",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000019",
+    "name": "Lincolnshire",
+    "rgncd": "E12000004",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000031",
+    "name": "Warwickshire",
+    "rgncd": "E12000005",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000028",
+    "name": "Staffordshire",
+    "rgncd": "E12000005",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000011",
+    "name": "East Sussex",
+    "rgncd": "E12000008",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000003",
+    "name": "Cambridgeshire",
+    "rgncd": "E12000006",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "W99999999",
+    "name": "(pseudo) Wales",
+    "rgncd": "W99999999",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E99999999",
+    "name": "(pseudo) England (UA/MD/LB)",
+    "rgncd": "E12000005",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000013",
+    "name": "Gloucestershire",
+    "rgncd": "E12000009",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E99999999",
+    "name": "(pseudo) England (UA/MD/LB)",
+    "rgncd": "E12000008",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000018",
+    "name": "Leicestershire",
+    "rgncd": "E12000004",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000015",
+    "name": "Hertfordshire",
+    "rgncd": "E12000006",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E99999999",
+    "name": "(pseudo) England (UA/MD/LB)",
+    "rgncd": "E12000003",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E99999999",
+    "name": "(pseudo) England (UA/MD/LB)",
+    "rgncd": "E12000009",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000017",
+    "name": "Lancashire",
+    "rgncd": "E12000002",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000029",
+    "name": "Suffolk",
+    "rgncd": "E12000006",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E99999999",
+    "name": "(pseudo) England (UA/MD/LB)",
+    "rgncd": "E12000006",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000025",
+    "name": "Oxfordshire",
+    "rgncd": "E12000008",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000030",
+    "name": "Surrey",
+    "rgncd": "E12000008",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000007",
+    "name": "Derbyshire",
+    "rgncd": "E12000004",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000020",
+    "name": "Norfolk",
+    "rgncd": "E12000006",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "S99999999",
+    "name": "(pseudo) Scotland",
+    "rgncd": "S99999999",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000012",
+    "name": "Essex",
+    "rgncd": "E12000006",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E99999999",
+    "name": "(pseudo) England (UA/MD/LB)",
+    "rgncd": "E12000001",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000032",
+    "name": "West Sussex",
+    "rgncd": "E12000008",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "E10000008",
+    "name": "Devon",
+    "rgncd": "E12000009",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  }
+]

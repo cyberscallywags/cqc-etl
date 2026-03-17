@@ -1,0 +1,22 @@
+{
+  "location_ratings": {
+    "locationId": "Location ID",
+    "name": "Location Name",
+    "serviceGroup": "Service / Population Group",
+    "domain": "Domain",
+    "latestRating": "Latest Rating",
+    "publicationDate": "Publication Date",
+    "reportType": "Report Type",
+    "inheritedRating": "Inherited Rating (Y/N)"
+  },
+  "provider_ratings": {
+    "providerId": "Provider ID",
+    "name": "Provider Name",
+    "serviceGroup": "Service / Population Group",
+    "domain": "Domain",
+    "latestRating": "Latest Rating",
+    "publicationDate": "Publication Date",
+    "reportType": "Report Type",
+    "inheritedRating": "Inherited Rating (Y/N)"
+  }
+}

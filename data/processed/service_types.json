@@ -1,0 +1,167 @@
+[
+  {
+    "_id": "st01",
+    "name": "Acute services with overnight beds",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st02",
+    "name": "Acute services without overnight beds / listed acute services with or without overnight beds",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st03",
+    "name": "Ambulance service",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st04",
+    "name": "Blood and Transplant service",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st05",
+    "name": "Care home service with nursing",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st06",
+    "name": "Care home service without nursing",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st07",
+    "name": "Community based services for people who misuse substances",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st08",
+    "name": "Community based services for people with a learning disability",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st09",
+    "name": "Community based services for people with mental health needs",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st10",
+    "name": "Community health care services - Independent Midwives",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st11",
+    "name": "Community health care services - Nurses Agency only",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st12",
+    "name": "Community healthcare service",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st13",
+    "name": "Dental service",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st14",
+    "name": "Diagnostic and/or screening service",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st15",
+    "name": "Diagnostic and/or screening service - single handed sessional providers",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st16",
+    "name": "Doctors consultation service",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st17",
+    "name": "Doctors treatment service",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st18",
+    "name": "Domiciliary care service",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st19",
+    "name": "Extra Care housing services",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st20",
+    "name": "Hospice services",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st21",
+    "name": "Hospice services at home",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st22",
+    "name": "Hospital services for people with mental health needs, learning disabilities and problems with substance misuse",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st23",
+    "name": "Hyperbaric Chamber",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st24",
+    "name": "Long term conditions services",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st25",
+    "name": "Mobile doctors service",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st26",
+    "name": "Prison Healthcare Services",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st27",
+    "name": "Rehabilitation services",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st28",
+    "name": "Remote clinical advice service",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st29",
+    "name": "Residential substance misuse treatment and/or rehabilitation service",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st30",
+    "name": "Shared Lives",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st31",
+    "name": "Specialist college service",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st32",
+    "name": "Supported living service",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  },
+  {
+    "_id": "st33",
+    "name": "Urgent care services",
+    "updatedAt": "2026-03-16T18:56:17.777283"
+  }
+]

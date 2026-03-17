@@ -1,0 +1,165 @@
+{
+  "filemap": {
+    "postcodes": "Postcode",
+    "local_authorities": "LocalAuthority",
+    "counties": "County",
+    "icbs": "ICB",
+    "regions": "Region",
+    "nhser": "NHSEnglandRegion",
+    "locations": "Location",
+    "providers": "Provider",
+    "location_ratings": "LocationRating",
+    "provider_ratings": "ProviderRating",
+    "service_types": "ServiceType",
+    "service_groups": "ServiceGroup",
+    "service_user_bands": "ServiceUserBand",
+    "inspection_categories": "InspectionCategory",
+    "inspection_directorates": "InspectionDirectorate",
+    "report_types": "ReportType",
+    "org_types": "OrganisationType",
+    "brands": "Brand",
+    "lad_populations": "LADPopulation"
+  },
+  "relationships": [
+    {
+      "source": "postcodes",
+      "from": {"Postcode": "_id"},
+      "to": {"LocalAuthority": "postcode"},
+      "type": "IN_LA"
+    },
+    {
+      "source": "local_authorities",
+      "from": {"LocalAuthority": "ctycd"},
+      "to": {"County": "_id"},
+      "type": "IN_COUNTY"
+    },
+    {
+      "source": "local_authorities",
+      "from": {"LocalAuthority": "icbcd"},
+      "to": {"ICB": "_id"},
+      "type": "IN_ICB"
+    },
+    {
+      "source": "local_authorities",
+      "from": {"LocalAuthority": "rgncd"},
+      "to": {"Region": "_id"},
+      "type": "IN_REGION"
+    },
+    {
+      "source": "local_authorities",
+      "from": {"LocalAuthority": "nhsercd"},
+      "to": {"NHSEnglandRegion": "_id"},
+      "type": "IN_NHSER"
+    },
+    {
+      "source": "local_authorities",
+      "from": {"LocalAuthority": "_id"},
+      "to": {"LAPopulation": "ladcd"},
+      "type": "HAS_POPULATION",
+      "is_time_series": true,
+      "timestamp": "year"
+    },
+    {
+      "source": "counties",
+      "from": {"County": "rgncd"},
+      "to": {"Region": "_id"},
+      "type": "IN_REGION"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "postcode"},
+      "to": {"Postcode": "_id"},
+      "type": "IN_POSTCODE"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "providerId"},
+      "to": {"Provider": "_id"},
+      "type": "OF_PROVIDER"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "serviceUserBands"},
+      "to": {"ServiceUserBand": "name"},
+      "type": "HAS_SERVICES_FOR"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "serviceTypes"},
+      "to": {"ServiceType": "name"},
+      "type": "HAS_SERVICE_TYPE"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "type"},
+      "to": {"OrganisationType": "name"},
+      "type": "OF_ORG_TYPE"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "primaryInspectionCategory"},
+      "to": {"InspectionCategory": "name"},
+      "type": "HAS_INSPECTION_CATEGORY"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "_id"},
+      "to": {"LocationRating": "locationId"},
+      "type": "HAS_RATING",
+      "is_time_series": true,
+      "timestamp": "publicationDate",
+      "discriminators": ["reportType", "serviceGroup"]
+    },
+    {
+      "source": "providers",
+      "from": {"Provider": "postcode"},
+      "to": {"Postcode": "_id"},
+      "type": "IN_POSTCODE"
+    },
+    {
+      "source": "providers",
+      "from": {"Provider": "type"},
+      "to": {"OrganisationType": "name"},
+      "type": "OF_ORG_TYPE"
+    },
+    {
+      "source": "providers",
+      "from": {"Provider": "primaryInspectionCategory"},
+      "to": {"InspectionCategory": "name"},
+      "type": "HAS_INSPECTION_CATEGORY"
+    },
+    {
+      "source": "providers",
+      "from": {"Provider": "_id"},
+      "to": {"ProviderRating": "providerId"},
+      "type": "HAS_RATING",
+      "is_time_series": true,
+      "timestamp": "publicationDate",
+      "discriminators": ["reportType", "serviceGroup"]
+    },
+    {
+      "source": "location_ratings",
+      "from": {"LocationRating": "serviceGroup"},
+      "to": {"ServiceGroup": "name"},
+      "type": "IN_SERVICE_GROUP"
+    },
+    {
+      "source": "location_ratings",
+      "from": {"LocationRating": "reportType"},
+      "to": {"ReportType": "name"},
+      "type": "OF_REPORT_TYPE"
+    },
+    {
+      "source": "provider_ratings",
+      "from": {"ProviderRating": "serviceGroup"},
+      "to": {"ServiceGroup": "name"},
+      "type": "IN_SERVICE_GROUP"
+    },
+    {
+      "source": "provider_ratings",
+      "from": {"ProviderRating": "reportType"},
+      "to": {"ReportType": "name"},
+      "type": "OF_REPORT_TYPE"
+    }
+  ]
+}
