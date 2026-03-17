@@ -1,0 +1,104 @@
+{
+  "onspd": {
+    "pcds": "pcds",
+    "ctycd": "cty25cd",
+    "ladcd": "lad25cd",
+    "icbcd": "icb23cd",
+    "rgncd": "rgn25cd",
+    "nhsercd": "nhser24cd",
+    "lat": "lat",
+    "long": "long"
+  },
+  "la_districts": {
+    "code": "LAD25CD",
+    "name": "LAD25NM",
+    "lat": "LAT",
+    "long": "LONG"
+  },
+  "counties": {
+    "code": "CTY25CD",
+    "name": "CTY25NM"
+  },
+  "icbs": {
+    "code": "ICB23CD",
+    "name": "ICB23NM"
+  },
+  "regions": {
+    "code": "RGN25CD",
+    "name": "RGN25NM"
+  },
+  "nhser": {
+    "code": "NHSER24CD",
+    "name": "NHSER24NM"
+  },
+  "lad_pop": {
+    "code": "LAD25CD",
+    "name": "LAD25NM",
+    "year": "YEAR",
+    "total": "TOTAL",
+    "50-54" :"50-54",
+    "55-59":"55-59",
+    "60-64" :"60-64",
+    "65-69":"65-69",
+    "70-74" :"70-74",
+    "75-79":"75-79",
+    "80-84" :"80-84",
+    "85-89":"85-89",
+    "90+":"90+"
+  },
+  "directory": {
+    "_id": "CQC Location ID (for office use only)",
+    "name": "Name",
+    "address": "Address",
+    "postcode": "Postcode",
+    "phoneNo": "Phone number",
+    "url": "Service's website (if available)",
+    "services": "Specialisms/services",
+    "serviceTypes": "Service types",
+    "latestCheckDate": "Date of latest check",
+    "providerId": "CQC Provider ID (for office use only)",
+    "providerName": "Provider name",
+    "cqcUrl": "Location URL"
+  },
+  "locations": {
+    "_id": "Location ID",
+    "odsCode": "Location ODS Code",
+    "name": "Location Name",
+    "type": "Location Type",
+    "isCareHome": "Care Home?",
+    "primaryInspectionCategory": "Location Primary Inspection Category",
+    "addressLine1": "Location Street Address",
+    "addressLine2": "Location Address Line 2",
+    "city": "Location City",
+    "postcode": "Location Post Code",
+    "providerId": "Provider ID",
+    "providerName": "Provider Name",
+    "brandId": "Brand ID",
+    "brandName": "Brand Name",
+    "serviceGroup": "Service / Population Group",
+    "domain": "Domain",
+    "latestRating": "Latest Rating",
+    "publicationDate": "Publication Date",
+    "reportType": "Report Type",
+    "inheritedRating": "Inherited Rating (Y/N)"
+  },
+  "providers": {
+    "_id": "Provider ID",
+    "odsCode": "Provider ODS Code",
+    "name": "Provider Name",
+    "type": "Provider Type",
+    "primaryInspectionCategory": "Provider Primary Inspection Category",
+    "addressLine1": "Provider Street Address",
+    "addressLine2": "Provider Address Line 2",
+    "city": "Provider City",
+    "postcode": "Provider Post Code",
+    "brandId": "Brand ID",
+    "brandName": "Brand Name",
+    "serviceGroup": "Service / Population Group",
+    "domain": "Domain",
+    "latestRating": "Latest Rating",
+    "publicationDate": "Publication Date",
+    "reportType": "Report Type",
+    "inheritedRating": "Inherited Rating (Y/N)"
+  }
+}
