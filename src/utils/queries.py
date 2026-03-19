@@ -181,7 +181,16 @@ TRANSFORM_QUERIES = [
             ORDER BY publicationDate DESC
         ) = 1
     )
-    SELECT * FROM deduped;
+    SELECT *
+    FROM deduped
+    WHERE COALESCE(
+        ratingSafe,
+        ratingEffective,
+        ratingCaring,
+        ratingResponsive,
+        ratingWellLed,
+        ratingOverall
+    ) IS NOT NULL;
     """,
 
     # Final providers table
@@ -291,9 +300,17 @@ TRANSFORM_QUERIES = [
             ORDER BY publicationDate DESC
         ) = 1
     )
-    SELECT * FROM deduped;
+    SELECT *
+    FROM deduped
+    WHERE COALESCE(
+        ratingSafe,
+        ratingEffective,
+        ratingCaring,
+        ratingResponsive,
+        ratingWellLed,
+        ratingOverall
+    ) IS NOT NULL;
     """,
-
 
     # Services user bands table
     """
@@ -693,3 +710,120 @@ INITIALISE_RATINGS_QUERIES = [
     LEFT JOIN pivoted p USING (cqcId, serviceGroup);
     """,
 ]
+
+
+# CYPHER QUERIES
+
+def build_simple_query(source_label, source_prop, target_label, target_prop, rel):
+    """Simple fan out relationships query."""
+    return f"""
+        MATCH (source:{source_label})
+        WHERE source._id IN $ids
+        OPTIONAL MATCH (source)-[old_rel:{rel}]->()
+        DELETE old_rel
+        WITH source
+        WHERE source.{source_prop} IS NOT NULL
+        UNWIND source.{source_prop} AS value
+        MATCH (target:{target_label} {{{target_prop}: value}})
+        MERGE (source)-[:{rel}]->(target)
+        RETURN count(*) AS relationships_created
+    """
+
+
+def build_time_series_query(
+    source_label, source_prop, target_label, target_prop,
+    rel, timestamp_field, discriminators, rel_properties
+):
+    """Time series chained query."""
+    disc_with = ", ".join([f"target.{d} AS {d}" for d in discriminators])
+    order_by = ", ".join([*discriminators, f"target.{timestamp_field} DESC"])
+    group_with = ", ".join(["source", *discriminators, "collect(target) AS ts"])
+
+    if rel_properties:
+        props = ", ".join(f"{p}: latest.{p}" for p in rel_properties)
+        rel_props_set = f"SET r += {{{props}}}"
+    else:
+        rel_props_set = ""
+
+    return f"""
+        MATCH (source:{source_label})
+        WHERE source._id IN $ids
+
+        OPTIONAL MATCH (target_to_clear:{target_label} {{{target_prop}: source.{source_prop}}})
+        OPTIONAL MATCH (source)-[old_rel:{rel}]->(target_to_clear)
+        OPTIONAL MATCH (target_to_clear)-[old_prev:PREVIOUS]->(:{target_label})
+        DELETE old_rel, old_prev
+
+        WITH DISTINCT source
+        WHERE source.{source_prop} IS NOT NULL
+        MATCH (target:{target_label} {{{target_prop}: source.{source_prop}}})
+        {"WITH source, target, " + disc_with if disc_with else "WITH source, target"}
+        ORDER BY {order_by}
+
+        WITH {group_with}
+
+        FOREACH (i IN range(0, size(ts)-2) |
+          FOREACH (curr IN [ts[i]] |
+            FOREACH (prev IN [ts[i+1]] |
+              MERGE (curr)-[:PREVIOUS]->(prev)
+            )
+          )
+        )
+
+        WITH source, ts
+        WHERE size(ts) > 0
+        WITH source, head(ts) AS latest
+        MERGE (source)-[r:{rel}]->(latest)
+        {rel_props_set}
+        RETURN count(DISTINCT r) AS relationships_created
+    """
+
+
+def build_time_series_query_apoc(
+    source_label, source_prop, target_label, target_prop,
+    rel, timestamp_field, discriminators, rel_properties
+):
+    # Build discriminator WITH clause
+    disc_with = ", ".join([f"target.{d} AS {d}" for d in discriminators])
+    order_by = ", ".join([*discriminators, f"target.{timestamp_field} DESC"])
+    group_with = ", ".join(["source", *discriminators, "collect(target) AS ts"])
+
+    # Relationship properties copied from latest node
+    if rel_properties:
+        props = ", ".join(f"{p}: latest.{p}" for p in rel_properties)
+        rel_props_set = f"SET r += {{{props}}}"
+    else:
+        rel_props_set = ""
+
+    return f"""
+        // 1. Match updated sources
+        MATCH (source:{source_label})
+        WHERE source._id IN $ids
+
+        // 2. Clear existing relationships and PREVIOUS chains
+        OPTIONAL MATCH (target_to_clear:{target_label} {{{target_prop}: source.{source_prop}}})
+        OPTIONAL MATCH (source)-[old_rel:{rel}]->(target_to_clear)
+        OPTIONAL MATCH (target_to_clear)-[old_prev:PREVIOUS]->(:{target_label})
+        DELETE old_rel, old_prev
+
+        // 3. Re-match all relevant targets
+        WITH DISTINCT source
+        WHERE source.{source_prop} IS NOT NULL
+        MATCH (target:{target_label} {{{target_prop}: source.{source_prop}}})
+        {"WITH source, target, " + disc_with if disc_with else "WITH source, target"}
+        ORDER BY {order_by}
+
+        // 4. Group into time-series buckets
+        WITH {group_with}
+
+        // 5. Build PREVIOUS chain using APOC
+        WHERE size(ts) > 0
+        CALL apoc.nodes.link(ts, 'PREVIOUS') YIELD nodes
+
+        // 6. Attach source -> latest
+        WITH source, head(ts) AS latest
+        MERGE (source)-[r:{rel}]->(latest)
+        {rel_props_set}
+
+        RETURN count(DISTINCT r) AS relationships_created
+    """

@@ -151,3 +151,12 @@ def to_array(field_string, separator: str):
     if not field_string:
         return []
     return [item.strip() for item in field_string.split(separator) if item.strip()]
+
+
+def get_latest_code(code, successor_map):
+    """Walk through code changes to get the latest code."""
+    seen = set()
+    while code in successor_map and code not in seen:
+        seen.add(code)
+        code = successor_map[code]
+    return code

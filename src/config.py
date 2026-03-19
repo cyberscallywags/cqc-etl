@@ -7,10 +7,9 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
-neo4j_uri = os.getenv("NEO4J_URI")
-neo4j_user = os.getenv("NEO4J_USERNAME")
-neo4j_pwd = os.getenv("NEO4J_PASSWORD")
-hf_token = os.getenv("HUGGINGFACE_HUB_TOKEN")
+neo4j_uri = os.getenv("LOCAL_NEO4J_URI")
+neo4j_user = os.getenv("LOCAL_NEO4J_USERNAME")
+neo4j_pwd = os.getenv("LOCAL_NEO4J_PASSWORD")
 
 # Paths
 PROJ_ROOT = Path(__file__).resolve().parents[1]
