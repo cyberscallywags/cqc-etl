@@ -14,3 +14,5 @@ neo4j~=5.28
 pyexcel
 pyexcel-ods
 watchdog
+duckdb
+polars

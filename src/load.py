@@ -13,10 +13,10 @@ from src.utils.queries import load_schema
 from src.utils.ops import upsert_nodes, create_relationships
 from src.config import PROCESSED_DATA_DIR
 
-# Load schema
-schema: dict = load_schema("aura_01")
-fmap: dict = schema["filemap"]
-rel_cfgs: list[dict] = schema["relationships"]
+# Load knowledge graph json
+kg: dict = load_schema("aura_01")
+fmap: dict = {i["filename"]: i["label"] for i in kg}
+rel_cfgs: list[dict] = kg["relationships"]
 
 
 def load_processed(filemap: dict):

@@ -1,0 +1,444 @@
+{
+  "entities": [
+     {
+      "label": "Postcode",
+      "filename": "postcodes",
+      "description": "UK postcode centroids with associated local authority",
+      "properties": {
+        "_id": {"type": "string"},
+        "ladcd": {"type": "string"},
+        "lat": {"type": "float"},
+        "long": {"type": "float"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "LocalAuthority",
+      "filename": "local_authorities",
+      "description": "Local authorities in the UK (May 2025), with associated county, region, ICB and NHS England region codes",
+      "properties": {
+        "_id": {"type": "string"},
+        "name": {"type": "string"},
+        "ctycd": {"type": "string"},
+        "rgncd": {"type": "string"},
+        "icbcd": {"type": "string"},
+        "nhsercd": {"type": "string"},
+        "lat": {"type": "float"},
+        "long": {"type": "float"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "County",
+      "filename": "counties",
+      "description": "Counties in the UK (May 2025), with associated region code",
+      "properties": {
+        "_id": {"type": "string"},
+        "name": {"type": "string"},
+        "rgncd": {"type": "string"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "ICB",
+      "filename": "icbs",
+      "description": "Integrated Care Boards in England (May 2025), with associated region code",
+      "properties": {
+        "_id": {"type": "string"},
+        "name": {"type": "string"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "Region",
+      "filename": "regions",
+      "description": "Regions in the UK (May 2025)",
+      "properties": {
+        "_id": {"type": "string"},
+        "name": {"type": "string"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "NHSEnglandRegion",
+      "filename": "nhser",
+      "description": "NHS England regions (May 2025)",
+      "properties": {
+        "_id": {"type": "string"},
+        "name": {"type": "string"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "Location",
+      "filename": "locations",
+      "description": "Locations of CQC-regulated services in the UK, with associated provider, brand, service types, service user bands and inspection categories",
+      "properties": {
+        "_id": {"type": "string"},
+        "odsCode": {"type": "string"},
+        "name": {"type": "string"},
+        "type": {"type": "string"},
+        "dormant": {"type": "string"},
+        "isCareHome": {"type": "string"},
+        "careHomeBedCount": {"type": "integer"},
+        "inspectionDirectorate": {"type": "string"},
+        "primaryInspectionCategory": {"type": "string"},
+        "regulatedActivities": {"type": "list"},
+        "serviceTypes": {"type": "list"},
+        "serviceUserBands": {"type": "list"},
+        "address": {"type": "string"},
+        "city": {"type": "string"},
+        "postcode": {"type": "string"},
+        "parliamentaryConstituency": {"type": "string"},
+        "lat": {"type": "float"},
+        "long": {"type": "float"},
+        "url": {"type": "string"},
+        "providerId": {"type": "string"},
+        "brandId": {"type": "string"},
+        "hscaStartDate": {"type": "date"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "Provider",
+      "filename": "providers",
+      "description": "Providers of CQC-regulated services in the UK, with associated organisation type, inspection category and ratings",
+      "properties": {
+        "_id": {"type": "string"},
+        "name": {"type": "string"},
+        "type": {"type": "string"},
+        "dormant": {"type": "string"},
+        "inspectionDirectorate": {"type": "string"},
+        "primaryInspectionCategory": {"type": "string"},
+        "address": {"type": "string"},
+        "city": {"type": "string"},
+        "postcode": {"type": "string"},
+        "parliamentaryConstituency": {"type": "string"},
+        "lat": {"type": "float"},
+        "long": {"type": "float"},
+        "phone": {"type": "string"},
+        "url": {"type": "string"},
+        "hscaStartDate": {"type": "date"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "LocationRating",
+      "filename": "location_ratings",
+      "description": "Ratings for CQC-regulated locations, with associated report type and service group",
+      "properties": {
+        "_id": {"type": "string"},
+        "locationId": {"type": "string"},
+        "reportType": {"type": "string"},
+        "serviceGroup": {"type": "string"},
+        "ratingSafe": {"type": "string"},
+        "ratingEffective": {"type": "string"},
+        "ratingCaring": {"type": "string"},
+        "ratingResponsive": {"type": "string"},
+        "ratingWellLed": {"type": "string"},
+        "ratingOverall": {"type": "string"},
+        "inheritedRating": {"type": "string"},
+        "publicationDate": {"type": "date"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "ProviderRating",
+      "filename": "provider_ratings",
+      "description": "Ratings for providers of CQC-regulated services, with associated report type and service group",
+      "properties": {
+        "_id": {"type": "string"},
+        "providerId": {"type": "string"},
+        "reportType": {"type": "string"},
+        "serviceGroup": {"type": "string"},
+        "ratingSafe": {"type": "string"},
+        "ratingEffective": {"type": "string"},
+        "ratingCaring": {"type": "string"},
+        "ratingResponsive": {"type": "string"},
+        "ratingWellLed": {"type": "string"},
+        "ratingOverall": {"type": "string"},
+        "inheritedRating": {"type": "string"},
+        "publicationDate": {"type": "date"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "ServiceType",
+      "filename": "service_types",
+      "description": "Service types for CQC-regulated locations",
+      "properties": {
+        "_id": {"type": "string"},
+        "name": {"type": "string"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "ServiceGroup",
+      "filename": "service_groups",
+      "description": "Service groups for CQC-regulated locations",
+      "properties": {
+        "_id": {"type": "string"},
+        "name": {"type": "string"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "ServiceUserBand",
+      "filename": "service_user_bands",
+      "description": "Service user bands for CQC-regulated locations",
+      "properties": {
+        "_id": {"type": "string"},
+        "name": {"type": "string"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "InspectionCategory",
+      "filename": "inspection_categories",
+      "description": "Inspection categories for CQC-regulated locations",
+      "properties": {
+        "_id": {"type": "string"},
+        "name": {"type": "string"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "InspectionDirectorate",
+      "filename": "inspection_directorates",
+      "description": "Inspection directorates for CQC-regulated locations",
+      "properties": {
+        "_id": {"type": "string"},
+        "name": {"type": "string"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "ReportType",
+      "filename": "report_types",
+      "description": "Report types for CQC inspections",
+      "properties": {
+        "_id": {"type": "string"},
+        "name": {"type": "string"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "OrganisationType",
+      "filename": "org_types",
+      "description": "Organisation types for providers of CQC-regulated services",
+      "properties": {
+        "_id": {"type": "string"},
+        "name": {"type": "string"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "Brand",
+      "filename": "brands",
+      "description": "Brands for providers of CQC-regulated services",
+      "properties": {
+        "_id": {"type": "string"},
+        "name": {"type": "string"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "LADPopulation",
+      "filename": "lad_populations",
+      "description": "Population counts by age group for local authorities in the UK, with associated year",
+      "properties": {
+        "_id": {"type": "string"},
+        "ladcd": {"type": "string"},
+        "year": {"type": "integer"},
+        "population": {"type": "integer"},
+        "50-54": {"type": "integer"},
+        "55-59": {"type": "integer"},
+        "60-64": {"type": "integer"},
+        "65-69": {"type": "integer"},
+        "70-74": {"type": "integer"},
+        "75-79": {"type": "integer"},
+        "80-84": {"type": "integer"},
+        "85-89": {"type": "integer"},
+        "90+": {"type": "integer"},
+        "updatedAt": {"type": "date"}
+      }
+    },
+    {
+      "label": "LADLifeExpectancy",
+      "filename": "lad_life_expectancy",
+      "description": "Life expectancy at birth by age group for local authorities in the UK, with associated year",
+      "properties": {
+        "_id": {"type": "string"},
+        "ladcd": {"type": "string"},
+        "start_year": {"type": "integer"},
+        "interval": {"type": "string"},
+        "50-54": {"type": "list"},
+        "55-59": {"type": "list"},
+        "60-64": {"type": "list"},
+        "65-69": {"type": "list"},
+        "70-74": {"type": "list"},
+        "75-79": {"type": "list"},
+        "80-84": {"type": "list"},
+        "85-89": {"type": "list"},
+        "90+": {"type": "list"},
+        "updatedAt": {"type": "date"}
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "source": "postcodes",
+      "from": {"Postcode": "ladcd"},
+      "to": {"LocalAuthority": "_id"},
+      "type": "IN_LA"
+    },
+    {
+      "source": "local_authorities",
+      "from": {"LocalAuthority": "ctycd"},
+      "to": {"County": "_id"},
+      "type": "IN_COUNTY"
+    },
+    {
+      "source": "local_authorities",
+      "from": {"LocalAuthority": "icbcd"},
+      "to": {"ICB": "_id"},
+      "type": "IN_ICB"
+    },
+    {
+      "source": "local_authorities",
+      "from": {"LocalAuthority": "rgncd"},
+      "to": {"Region": "_id"},
+      "type": "IN_REGION"
+    },
+    {
+      "source": "local_authorities",
+      "from": {"LocalAuthority": "nhsercd"},
+      "to": {"NHSEnglandRegion": "_id"},
+      "type": "IN_NHSER"
+    },
+    {
+      "source": "local_authorities",
+      "from": {"LocalAuthority": "_id"},
+      "to": {"LADPopulation": "ladcd"},
+      "type": "HAS_POPULATION",
+      "is_time_series": true,
+      "timestamp": "year"
+    },
+    {
+      "source": "counties",
+      "from": {"County": "rgncd"},
+      "to": {"Region": "_id"},
+      "type": "IN_REGION"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "postcode"},
+      "to": {"Postcode": "_id"},
+      "type": "IN_POSTCODE"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "providerId"},
+      "to": {"Provider": "_id"},
+      "type": "OF_PROVIDER"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "serviceUserBands"},
+      "to": {"ServiceUserBand": "name"},
+      "type": "HAS_SERVICES_FOR"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "serviceTypes"},
+      "to": {"ServiceType": "name"},
+      "type": "HAS_SERVICE_TYPE"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "type"},
+      "to": {"OrganisationType": "name"},
+      "type": "OF_ORG_TYPE"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "brandId"},
+      "to": {"Brand": "_id"},
+      "type": "OF_BRAND"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "primaryInspectionCategory"},
+      "to": {"InspectionCategory": "name"},
+      "type": "HAS_INSPECTION_CATEGORY"
+    },
+    {
+      "source": "locations",
+      "from": {"Location": "_id"},
+      "to": {"LocationRating": "locationId"},
+      "type": "HAS_RATING",
+      "is_time_series": true,
+      "timestamp": "publicationDate",
+      "discriminators": ["reportType", "serviceGroup"],
+      "properties": {
+        "date": {"type": "date"},
+        "overallRating": {"type": "string"}
+      }
+    },
+    {
+      "source": "providers",
+      "from": {"Provider": "postcode"},
+      "to": {"Postcode": "_id"},
+      "type": "IN_POSTCODE"
+    },
+    {
+      "source": "providers",
+      "from": {"Provider": "type"},
+      "to": {"OrganisationType": "name"},
+      "type": "OF_ORG_TYPE"
+    },
+    {
+      "source": "providers",
+      "from": {"Provider": "primaryInspectionCategory"},
+      "to": {"InspectionCategory": "name"},
+      "type": "HAS_INSPECTION_CATEGORY"
+    },
+    {
+      "source": "providers",
+      "from": {"Provider": "_id"},
+      "to": {"ProviderRating": "providerId"},
+      "type": "HAS_RATING",
+      "is_time_series": true,
+      "timestamp": "publicationDate",
+      "discriminators": ["reportType", "serviceGroup"],
+      "properties": {
+        "date": {"type": "date"},
+        "overallRating": {"type": "string"}
+      }
+    },
+    {
+      "source": "location_ratings",
+      "from": {"LocationRating": "serviceGroup"},
+      "to": {"ServiceGroup": "name"},
+      "type": "IN_SERVICE_GROUP"
+    },
+    {
+      "source": "location_ratings",
+      "from": {"LocationRating": "reportType"},
+      "to": {"ReportType": "name"},
+      "type": "OF_REPORT_TYPE"
+    },
+    {
+      "source": "provider_ratings",
+      "from": {"ProviderRating": "serviceGroup"},
+      "to": {"ServiceGroup": "name"},
+      "type": "IN_SERVICE_GROUP"
+    },
+    {
+      "source": "provider_ratings",
+      "from": {"ProviderRating": "reportType"},
+      "to": {"ReportType": "name"},
+      "type": "OF_REPORT_TYPE"
+    }
+  ]
+}
