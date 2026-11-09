@@ -1,36 +1,44 @@
-"""Load data into AuraDB"""
+"""Project PostgreSQL Source of Truth into Neo4j Graph Database."""
 
 # Imports
-import json
 import asyncio
+import time
+
 from loguru import logger
 from rich.progress import (
-    Progress, BarColumn, TimeElapsedColumn,
-    TimeRemainingColumn, TextColumn,
-    )
-from src.utils.connectors import AuraDB
+    BarColumn,
+    Progress,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
+
+from src.utils.connectors import AuraDB, PostgresDB
+from src.utils.ops import (
+    ensure_neo4j_constraints,
+    fetch_entity_rows_from_pg,
+    fetch_relationship_edges_from_pg,
+    upsert_edge_batch,
+    upsert_nodes,
+)
 from src.utils.queries import load_schema
-from src.utils.ops import upsert_nodes, create_relationships
-from src.config import PROCESSED_DATA_DIR
-
-# Load knowledge graph json
-kg: dict = load_schema("aura_01")
-fmap: dict = {i["filename"]: i["label"] for i in kg}
-rel_cfgs: list[dict] = kg["relationships"]
 
 
-def load_processed(filemap: dict):
-    """Load all processed data into a dict."""
-    data = {}
-    for filename in filemap.keys():
-        with open(PROCESSED_DATA_DIR / f"{filename}.json", "r", encoding="utf-8") as f:
-            data[filename] = json.load(f)
-
+def load_entities_from_postgres(entities: list[dict]) -> dict[str, list[dict]]:
+    """Fetch all entity tables from PostgreSQL mapped to Neo4j camelCase properties."""
+    data: dict[str, list[dict]] = {}
+    pg_db = PostgresDB()
+    with pg_db.connect() as pg_conn:
+        for entity in entities:
+            filename = entity["filename"]
+            rows = fetch_entity_rows_from_pg(pg_conn, entity)
+            data[filename] = rows
+            logger.info(f"Loaded {len(rows):,} rows from PostgreSQL table '{filename}'.")
     return data
 
 
-async def worker(driver, sem, queue, progress, progress_tasks, global_task):
-    """Worker that processes chunks and updates progress bars."""
+async def node_worker(driver, sem, queue, progress, progress_tasks, global_task):
+    """Worker that upserts node chunks and updates progress bars."""
     while True:
         label, chunk = await queue.get()
         try:
@@ -38,27 +46,23 @@ async def worker(driver, sem, queue, progress, progress_tasks, global_task):
                 async with driver.session() as session:
                     await session.execute_write(upsert_nodes, {label: chunk})
 
-            # Update per-label progress
             progress.update(progress_tasks[label], advance=1)
-
-            # Update global progress
             progress.update(global_task, advance=1)
-
         finally:
             queue.task_done()
 
 
 async def upsert_all_nodes(
     driver,
-    filemap: dict,
-    data: dict,
-    sem,
-    batch_size=1000,
-    num_workers=10
+    filemap: dict[str, str],
+    data: dict[str, list[dict]],
+    sem: asyncio.Semaphore,
+    batch_size: int = 1000,
+    num_workers: int = 10,
 ):
-    queue = asyncio.Queue()
+    """Upsert all entity nodes into Neo4j with Rich progress display."""
+    queue: asyncio.Queue = asyncio.Queue()
 
-    # Rich progress display
     progress = Progress(
         TextColumn("[bold blue]{task.description}"),
         BarColumn(),
@@ -74,7 +78,6 @@ async def upsert_all_nodes(
     total_rows = 0
 
     with progress:
-        # First pass: create tasks and compute totals
         for filename, label in filemap.items():
             rows = data.get(filename, [])
             if not rows:
@@ -84,7 +87,6 @@ async def upsert_all_nodes(
             chunks = [rows[i:i + batch_size] for i in range(0, len(rows), batch_size)]
             total_chunks += len(chunks)
 
-            # Create per-label progress bar
             task_id = progress.add_task(
                 f"[cyan]{label}",
                 total=len(chunks),
@@ -92,70 +94,136 @@ async def upsert_all_nodes(
             )
             progress_tasks[label] = task_id
 
-            # Enqueue chunks
             for chunk in chunks:
                 queue.put_nowait((label, chunk))
 
-        # Global summary bar
         global_task = progress.add_task(
-            "[magenta]Total",
+            "[magenta]Total Nodes",
             total=total_chunks,
             row_count=total_rows,
         )
 
-        # Start workers
         workers = [
-            asyncio.create_task(worker(driver, sem, queue, progress, progress_tasks, global_task))
+            asyncio.create_task(
+                node_worker(driver, sem, queue, progress, progress_tasks, global_task)
+            )
             for _ in range(num_workers)
         ]
 
-        # Wait for all tasks to finish
         await queue.join()
 
-        # Cancel workers
         for w in workers:
             w.cancel()
 
-    logger.success("All labels upserted.")
+    logger.success("All node labels projected into Neo4j.")
 
 
-async def relationship_with_session(driver, cfg, data, batch_size=2000):
-    """Run relationship creation in batches of source IDs."""
-    source_docs = data[cfg["source"]]
-    all_ids = [i["_id"] for i in source_docs]
-    id_batches = [all_ids[i:i + batch_size] for i in range(0, len(all_ids), batch_size)]
+async def project_relationship_cfg(
+    driver,
+    sem: asyncio.Semaphore,
+    rel_cfg: dict,
+    primary_edges: list[dict],
+    prev_edges: list[dict],
+    batch_size: int = 2000,
+):
+    """Project primary edges and optional [:PREVIOUS] time-series chain edges into Neo4j."""
+    (source_label, _), = rel_cfg["from"].items()
+    (target_label, _), = rel_cfg["to"].items()
+    rel_type = rel_cfg["type"]
+    rel_prop_keys = list((rel_cfg.get("rel_prop_cols") or {}).keys())
 
-    for id_batch in id_batches:
+    # Clear existing relationships for this pattern before re-projecting
+    async with sem:
         async with driver.session() as session:
-            await session.execute_write(create_relationships, cfg, data, id_batch)
+            await session.run(
+                f"MATCH (:{source_label})-[r:{rel_type}]->(:{target_label}) DELETE r"
+            )
+            if rel_cfg.get("is_time_series"):
+                await session.run(
+                    f"MATCH (:{target_label})-[p:PREVIOUS]->(:{target_label}) DELETE p"
+                )
+
+    total_created = 0
+    for i in range(0, len(primary_edges), batch_size):
+        batch = primary_edges[i:i + batch_size]
+        async with sem:
+            async with driver.session() as session:
+                created = await session.execute_write(
+                    upsert_edge_batch,
+                    source_label,
+                    target_label,
+                    rel_type,
+                    batch,
+                    rel_prop_keys,
+                )
+                total_created += created
+
+    logger.info(
+        f"Projected {total_created:,} (:{source_label})-[:{rel_type}]->(:{target_label}) relationships."
+    )
+
+    if prev_edges:
+        total_prev = 0
+        for i in range(0, len(prev_edges), batch_size):
+            batch = prev_edges[i:i + batch_size]
+            async with sem:
+                async with driver.session() as session:
+                    created = await session.execute_write(
+                        upsert_edge_batch,
+                        target_label,
+                        target_label,
+                        "PREVIOUS",
+                        batch,
+                        None,
+                    )
+                    total_prev += created
+        logger.info(
+            f"Projected {total_prev:,} (:{target_label})-[:PREVIOUS]->(:{target_label}) time-series links."
+        )
 
 
-async def main(max_concurrency=15):
-    """Upsert nodes into AuraDB and create relationships."""
-    data = load_processed(filemap=fmap)
-    # Kill process if there's no data to upsert
+async def main(max_concurrency: int = 15):
+    """Project PostgreSQL Source of Truth into Neo4j."""
+    start = time.perf_counter()
+    kg: dict = load_schema("kg_01")
+    entities: list[dict] = kg["entities"]
+    fmap: dict[str, str] = {i["filename"]: i["label"] for i in entities}
+    rel_cfgs: list[dict] = kg["relationships"]
+
+    logger.info("Reading entity tables from PostgreSQL Source of Truth...")
+    data = load_entities_from_postgres(entities)
     if not data:
-        logger.error("No data available to upsert. Exiting...")
+        logger.error("No data available in PostgreSQL to project. Exiting...")
         return
 
-    # Connect to database
     driver = await AuraDB().connect_async()
     sem = asyncio.Semaphore(max_concurrency)
 
-    # Upsert nodes — each in its own session
-    logger.info("Upserting nodes...")
+    await ensure_neo4j_constraints(driver, entities)
+
+    logger.info("Projecting nodes into Neo4j...")
     await upsert_all_nodes(driver, fmap, data, sem)
 
-    # Prune configs using available data and create relationships
-    pruned_cfgs = [i for i in rel_cfgs if i["source"] in data]
+    logger.info("Computing relationship edge sets from PostgreSQL...")
+    pg_db = PostgresDB()
+    edge_Work = []
+    with pg_db.connect() as pg_conn:
+        for cfg in rel_cfgs:
+            primary_edges, prev_edges = fetch_relationship_edges_from_pg(pg_conn, cfg)
+            edge_Work.append((cfg, primary_edges, prev_edges))
+
+    logger.info("Projecting relationships into Neo4j...")
     await asyncio.gather(
         *[
-            relationship_with_session(driver, cfg, data)
-            for cfg in pruned_cfgs
+            project_relationship_cfg(driver, sem, cfg, primary_edges, prev_edges)
+            for cfg, primary_edges, prev_edges in edge_Work
         ]
     )
 
     await driver.close()
+    elapsed = time.perf_counter() - start
+    logger.success(f"Neo4j graph projection complete in {elapsed:.2f} seconds.")
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

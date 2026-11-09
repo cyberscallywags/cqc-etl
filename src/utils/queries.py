@@ -2,14 +2,17 @@
 
 # Imports
 import json
+
 from loguru import logger
+
 from src.config import SCHEMAS_DIR
+
 # pylint: disable=C0301
 
 
 # FUNCTIONS
 
-def run_queries(con, queries=None, select: str=""):
+def run_queries(con, queries=None, select: str = ""):
     """
     Run a list of DuckDB queries.
     Optionally choose from a predefined set of ETL pipeline queries.
@@ -17,15 +20,14 @@ def run_queries(con, queries=None, select: str=""):
     query_map = {
         "": queries,
         "transform": TRANSFORM_QUERIES,
-        "init_ratings": INITIALISE_RATINGS_QUERIES
-        }
+        "init_ratings": INITIALISE_RATINGS_QUERIES,
+    }
 
     if select not in query_map:
         raise ValueError(
             "Select parameter must either be 'transform', 'init_ratings' or left blank."
-            )
+        )
 
-    # Use the selected query list from the map
     selected_queries = query_map[select]
     if selected_queries is None:
         raise ValueError("No queries provided and no predefined query set selected.")
@@ -36,6 +38,7 @@ def run_queries(con, queries=None, select: str=""):
         logger.info(f"Running queries: {i} of {n_queries}")
         con.execute(query)
 
+
 def load_schema(schema: str):
     """Load a schema from the schemas folder."""
     schema = schema.split(".")[0]
@@ -43,11 +46,10 @@ def load_schema(schema: str):
         return json.load(f)
 
 
-
 # QUERY PIPELINES
 
 TRANSFORM_QUERIES = [
-    # Raw tables
+    # 1. Raw staging tables in DuckDB
     "CREATE OR REPLACE TABLE onspd_raw AS SELECT * FROM onspd_df",
     "CREATE OR REPLACE TABLE la_districts_raw AS SELECT * FROM la_districts_df",
     "CREATE OR REPLACE TABLE counties_raw AS SELECT * FROM counties_df",
@@ -60,48 +62,12 @@ TRANSFORM_QUERIES = [
     "CREATE OR REPLACE TABLE past_location_ratings AS SELECT * FROM past_location_ratings_df",
     "CREATE OR REPLACE TABLE past_provider_ratings AS SELECT * FROM past_provider_ratings_df",
     "CREATE OR REPLACE TABLE lad_pop_raw AS SELECT * FROM lad_pop_df",
+    "CREATE OR REPLACE TABLE lad_life_exp_raw AS SELECT * FROM lad_life_exp_df",
 
-    # LOCATIONS AND PROVIDERS
-
-    # Final locations table
+    # 2. Intermediate ratings staging (before FK resolution)
     """
-    CREATE OR REPLACE TABLE locations AS
-    SELECT
-        _id,
-        odsCode,
-        name,
-        type,
-        dormant,
-        isCareHome,
-        careHomeBedCount,
-        inspectionDirectorate,
-        primaryInspectionCategory,
-        regulatedActivities,
-        serviceTypes,
-        serviceUserBands,
-        address,
-        city,
-        postcode,
-        parliamentaryConstituency,
-        lat,
-        long,
-        CASE
-            WHEN phone IS NULL THEN NULL
-            ELSE '0' || split_part(CAST(phone AS VARCHAR), '.', 1)
-        END AS phone,
-        url,
-        providerId,
-        brandId,
-        dualRegistered,
-        dualRegistrationPID,
-        TRY_CAST(hscaStartDate AS DATE) AS hscaStartDate
-    FROM locations_raw;
-    """,
-
-    # Location ratings table
-    """
-    CREATE OR REPLACE TABLE location_ratings AS
-    WITH base AS (
+    CREATE OR REPLACE TABLE location_ratings_staged AS
+    WITH latest_base AS (
         SELECT
             locationId,
             serviceGroup,
@@ -114,7 +80,7 @@ TRANSFORM_QUERIES = [
             ORDER BY TRY_CAST(publicationDate AS DATE) DESC
         ) = 1
     ),
-    pivoted AS (
+    latest_pivoted AS (
         SELECT *
         FROM (
             SELECT
@@ -126,8 +92,7 @@ TRANSFORM_QUERIES = [
         )
         PIVOT (
             FIRST(latestRating)
-            FOR domain
-            IN (
+            FOR domain IN (
                 'Safe' AS ratingSafe,
                 'Effective' AS ratingEffective,
                 'Caring' AS ratingCaring,
@@ -136,91 +101,54 @@ TRANSFORM_QUERIES = [
                 'Overall' AS ratingOverall
             )
         )
-    )
-    SELECT
-        uuid() AS _id,
-        b.locationId,
-        b.reportType,
-        b.serviceGroup,
-        p.ratingSafe,
-        p.ratingEffective,
-        p.ratingCaring,
-        p.ratingResponsive,
-        p.ratingWellLed,
-        p.ratingOverall,
-        b.inheritedRating,
-        b.publicationDate
-    FROM base b
-    LEFT JOIN pivoted p USING (locationId, serviceGroup);
-    """,
-
-    """
-    CREATE OR REPLACE TABLE location_ratings AS
-    WITH combined AS (
-        SELECT
-            _id, locationId, reportType, serviceGroup,
-            ratingSafe, ratingEffective, ratingCaring,
-            ratingResponsive, ratingWellLed, ratingOverall,
-            inheritedRating, publicationDate
-        FROM location_ratings
-
-        UNION ALL
-
-        SELECT
-            _id, locationId, reportType, serviceGroup,
-            ratingSafe, ratingEffective, ratingCaring,
-            ratingResponsive, ratingWellLed, ratingOverall,
-            inheritedRating, publicationDate
-        FROM past_location_ratings
     ),
-    deduped AS (
-        SELECT *
-        FROM combined
-        QUALIFY ROW_NUMBER() OVER (
-            PARTITION BY locationId, serviceGroup, publicationDate, reportType
-            ORDER BY publicationDate DESC
-        ) = 1
+    latest_combined AS (
+        SELECT
+            b.locationId,
+            b.reportType,
+            b.serviceGroup,
+            p.ratingSafe,
+            p.ratingEffective,
+            p.ratingCaring,
+            p.ratingResponsive,
+            p.ratingWellLed,
+            p.ratingOverall,
+            b.inheritedRating,
+            b.publicationDate
+        FROM latest_base b
+        LEFT JOIN latest_pivoted p USING (locationId, serviceGroup)
+    ),
+    all_ratings AS (
+        SELECT
+            locationId, reportType, serviceGroup,
+            ratingSafe, ratingEffective, ratingCaring,
+            ratingResponsive, ratingWellLed, ratingOverall,
+            inheritedRating, publicationDate
+        FROM latest_combined
+        UNION ALL
+        SELECT
+            locationId, reportType, serviceGroup,
+            ratingSafe, ratingEffective, ratingCaring,
+            ratingResponsive, ratingWellLed, ratingOverall,
+            inheritedRating, TRY_CAST(publicationDate AS DATE) AS publicationDate
+        FROM past_location_ratings
     )
     SELECT *
-    FROM deduped
-    WHERE COALESCE(
-        ratingSafe,
-        ratingEffective,
-        ratingCaring,
-        ratingResponsive,
-        ratingWellLed,
-        ratingOverall
-    ) IS NOT NULL;
+    FROM all_ratings
+    WHERE publicationDate IS NOT NULL
+      AND COALESCE(
+          ratingSafe, ratingEffective, ratingCaring,
+          ratingResponsive, ratingWellLed, ratingOverall
+      ) IS NOT NULL
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY locationId, serviceGroup, publicationDate, reportType
+        ORDER BY publicationDate DESC
+    ) = 1;
     """,
 
-    # Final providers table
     """
-    CREATE OR REPLACE TABLE providers AS
-    SELECT DISTINCT
-        providerId AS _id,
-        providerName AS name,
-        providerType AS type,
-        providerInspectionDirectorate AS inspectionDirectorate,
-        providerPrimaryInspectionCategory AS primaryInspectionCategory,
-        provideraddress AS address,
-        providercity AS city,
-        providerPostcode AS postcode,
-        providerParliamentaryConstituency AS parliamentaryConstituency,
-        providerLat AS lat,
-        providerLong AS long,
-        CASE
-            WHEN providerPhone IS NULL THEN NULL
-            ELSE '0' || split_part(CAST(providerPhone AS VARCHAR), '.', 1)
-        END AS phone,
-        providerUrl AS url,
-        TRY_CAST(providerHscaStartDate AS DATE) AS hscaStartDate
-    FROM locations_raw;
-    """,
-
-    # Provider ratings table
-    """
-    CREATE OR REPLACE TABLE provider_ratings AS
-    WITH base AS (
+    CREATE OR REPLACE TABLE provider_ratings_staged AS
+    WITH latest_base AS (
         SELECT
             providerId,
             serviceGroup,
@@ -233,7 +161,7 @@ TRANSFORM_QUERIES = [
             ORDER BY TRY_CAST(publicationDate AS DATE) DESC
         ) = 1
     ),
-    pivoted AS (
+    latest_pivoted AS (
         SELECT *
         FROM (
             SELECT
@@ -245,8 +173,7 @@ TRANSFORM_QUERIES = [
         )
         PIVOT (
             FIRST(latestRating)
-            FOR domain
-            IN (
+            FOR domain IN (
                 'Safe' AS ratingSafe,
                 'Effective' AS ratingEffective,
                 'Caring' AS ratingCaring,
@@ -255,228 +182,199 @@ TRANSFORM_QUERIES = [
                 'Overall' AS ratingOverall
             )
         )
-    )
-    SELECT
-        uuid() AS _id,
-        b.providerId,
-        b.reportType,
-        b.serviceGroup,
-        p.ratingSafe,
-        p.ratingEffective,
-        p.ratingCaring,
-        p.ratingResponsive,
-        p.ratingWellLed,
-        p.ratingOverall,
-        b.inheritedRating,
-        b.publicationDate
-    FROM base b
-    LEFT JOIN pivoted p USING (providerId, serviceGroup);
-    """,
-
-    """
-    CREATE OR REPLACE TABLE provider_ratings AS
-    WITH combined AS (
-        SELECT
-            _id, providerId, reportType, serviceGroup,
-            ratingSafe, ratingEffective, ratingCaring,
-            ratingResponsive, ratingWellLed, ratingOverall,
-            inheritedRating, publicationDate
-        FROM provider_ratings
-
-        UNION ALL
-
-        SELECT
-            _id, providerId, reportType, serviceGroup,
-            ratingSafe, ratingEffective, ratingCaring,
-            ratingResponsive, ratingWellLed, ratingOverall,
-            inheritedRating, publicationDate
-        FROM past_provider_ratings
     ),
-    deduped AS (
-        SELECT *
-        FROM combined
-        QUALIFY ROW_NUMBER() OVER (
-            PARTITION BY providerId, serviceGroup, publicationDate, reportType
-            ORDER BY publicationDate DESC
-        ) = 1
+    latest_combined AS (
+        SELECT
+            b.providerId,
+            b.reportType,
+            b.serviceGroup,
+            p.ratingSafe,
+            p.ratingEffective,
+            p.ratingCaring,
+            p.ratingResponsive,
+            p.ratingWellLed,
+            p.ratingOverall,
+            b.inheritedRating,
+            b.publicationDate
+        FROM latest_base b
+        LEFT JOIN latest_pivoted p USING (providerId, serviceGroup)
+    ),
+    all_ratings AS (
+        SELECT
+            providerId, reportType, serviceGroup,
+            ratingSafe, ratingEffective, ratingCaring,
+            ratingResponsive, ratingWellLed, ratingOverall,
+            inheritedRating, publicationDate
+        FROM latest_combined
+        UNION ALL
+        SELECT
+            providerId, reportType, serviceGroup,
+            ratingSafe, ratingEffective, ratingCaring,
+            ratingResponsive, ratingWellLed, ratingOverall,
+            inheritedRating, TRY_CAST(publicationDate AS DATE) AS publicationDate
+        FROM past_provider_ratings
     )
     SELECT *
-    FROM deduped
-    WHERE COALESCE(
-        ratingSafe,
-        ratingEffective,
-        ratingCaring,
-        ratingResponsive,
-        ratingWellLed,
-        ratingOverall
-    ) IS NOT NULL;
+    FROM all_ratings
+    WHERE publicationDate IS NOT NULL
+      AND COALESCE(
+          ratingSafe, ratingEffective, ratingCaring,
+          ratingResponsive, ratingWellLed, ratingOverall
+      ) IS NOT NULL
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY providerId, serviceGroup, publicationDate, reportType
+        ORDER BY publicationDate DESC
+    ) = 1;
     """,
 
-    # Services user bands table
+    # 3. Lookup Tables (with deterministic UUIDv5 primary keys)
     """
     CREATE OR REPLACE TABLE service_user_bands AS
     WITH distinct_subs AS (
-        SELECT DISTINCT
-            serviceUserBand
-        FROM locations
+        SELECT DISTINCT trim(serviceUserBand) AS name
+        FROM locations_raw
         CROSS JOIN UNNEST(serviceUserBands) AS t(serviceUserBand)
         WHERE serviceUserBand IS NOT NULL
-        AND serviceUserBand <> 'nan'
-    ),
-    ordered AS (
-        SELECT
-            serviceUserBand AS name,
-            row_number() OVER (ORDER BY serviceUserBand) AS rn
-        FROM distinct_subs
+          AND trim(serviceUserBand) NOT IN ('', 'nan')
     )
     SELECT
-        'sub' || lpad(rn::VARCHAR, 2, '0') AS _id,
+        cqc_uuid5('service_user_bands:' || name) AS _id,
         name
-    FROM ordered
+    FROM distinct_subs
     ORDER BY name;
     """,
 
-    # Service types table
     """
     CREATE OR REPLACE TABLE service_types AS
     WITH distinct_types AS (
-        SELECT DISTINCT
-            serviceType
-        FROM locations
+        SELECT DISTINCT trim(serviceType) AS name
+        FROM locations_raw
         CROSS JOIN UNNEST(serviceTypes) AS t(serviceType)
         WHERE serviceType IS NOT NULL
-        AND serviceType <> 'nan'
-    ),
-    ordered AS (
-        SELECT
-            serviceType AS name,
-            row_number() OVER (ORDER BY serviceType) AS rn
-        FROM distinct_types
+          AND trim(serviceType) NOT IN ('', 'nan')
     )
     SELECT
-        'st' || lpad(rn::VARCHAR, 2, '0') AS _id,
+        cqc_uuid5('service_types:' || name) AS _id,
         name
-    FROM ordered
+    FROM distinct_types
     ORDER BY name;
     """,
 
-    # Service groups table
+    """
+    CREATE OR REPLACE TABLE regulated_activities AS
+    WITH distinct_acts AS (
+        SELECT DISTINCT trim(regulatedActivity) AS name
+        FROM locations_raw
+        CROSS JOIN UNNEST(regulatedActivities) AS t(regulatedActivity)
+        WHERE regulatedActivity IS NOT NULL
+          AND trim(regulatedActivity) NOT IN ('', 'nan')
+    )
+    SELECT
+        cqc_uuid5('regulated_activities:' || name) AS _id,
+        name
+    FROM distinct_acts
+    ORDER BY name;
+    """,
+
     """
     CREATE OR REPLACE TABLE service_groups AS
-    WITH service_groups_raw AS (
-        SELECT serviceGroup FROM location_ratings WHERE serviceGroup IS NOT NULL
+    WITH raw AS (
+        SELECT trim(serviceGroup) AS name FROM location_ratings_staged WHERE serviceGroup IS NOT NULL AND trim(serviceGroup) <> ''
         UNION
-        SELECT serviceGroup FROM provider_ratings WHERE serviceGroup IS NOT NULL
+        SELECT trim(serviceGroup) AS name FROM provider_ratings_staged WHERE serviceGroup IS NOT NULL AND trim(serviceGroup) <> ''
     )
     SELECT
-        'sg' || LPAD(CAST(ROW_NUMBER() OVER (ORDER BY serviceGroup) AS VARCHAR), 3, '00') AS _id,
-        serviceGroup AS name
-    FROM (
-        SELECT DISTINCT serviceGroup
-        FROM service_groups_raw
-    )
+        cqc_uuid5('service_groups:' || name) AS _id,
+        name
+    FROM (SELECT DISTINCT name FROM raw)
     ORDER BY name;
     """,
 
-    # Organisation types table
-    """
-    CREATE OR REPLACE TABLE org_types AS
-    WITH org_types_raw AS (
-        SELECT type FROM locations WHERE type IS NOT NULL
-        UNION
-        SELECT type FROM providers WHERE type IS NOT NULL
-    )
-    SELECT
-        'ot' || LPAD(CAST(ROW_NUMBER() OVER (ORDER BY type) AS VARCHAR), 2, '0') AS _id,
-        type AS name
-    FROM (
-        SELECT DISTINCT type
-        FROM org_types_raw
-    )
-    ORDER BY name;
-    """,
-
-    # Inspection categories table
-    """
-    CREATE OR REPLACE TABLE inspection_categories AS
-    WITH inspection_categories_raw AS (
-        SELECT primaryInspectionCategory FROM locations WHERE primaryInspectionCategory IS NOT NULL
-        UNION
-        SELECT primaryInspectionCategory FROM providers WHERE primaryInspectionCategory IS NOT NULL
-    )
-    SELECT
-        'ic' || LPAD(CAST(ROW_NUMBER() OVER (ORDER BY primaryInspectionCategory) AS VARCHAR), 2, '0') AS _id,
-        primaryInspectionCategory AS name
-    FROM (
-        SELECT DISTINCT primaryInspectionCategory
-        FROM inspection_categories_raw
-    )
-    ORDER BY name;
-    """,
-
-    # Report types table
     """
     CREATE OR REPLACE TABLE report_types AS
-    WITH report_types_raw AS (
-        SELECT reportType FROM location_ratings WHERE reportType IS NOT NULL AND reportType <> ''
+    WITH raw AS (
+        SELECT trim(reportType) AS name FROM location_ratings_staged WHERE reportType IS NOT NULL AND trim(reportType) <> ''
         UNION
-        SELECT reportType FROM provider_ratings WHERE reportType IS NOT NULL AND reportType <> ''
+        SELECT trim(reportType) AS name FROM provider_ratings_staged WHERE reportType IS NOT NULL AND trim(reportType) <> ''
     )
     SELECT
-        'rt' || LPAD(CAST(ROW_NUMBER() OVER (ORDER BY reportType) AS VARCHAR), 2, '0') AS _id,
-        reportType AS name
-    FROM (
-        SELECT DISTINCT reportType
-        FROM report_types_raw
-    )
+        cqc_uuid5('report_types:' || name) AS _id,
+        name
+    FROM (SELECT DISTINCT name FROM raw)
     ORDER BY name;
     """,
 
-    # Brands table
+    """
+    CREATE OR REPLACE TABLE org_types AS
+    WITH raw AS (
+        SELECT trim(type) AS name FROM locations_raw WHERE type IS NOT NULL AND trim(type) <> ''
+        UNION
+        SELECT trim(providerType) AS name FROM locations_raw WHERE providerType IS NOT NULL AND trim(providerType) <> ''
+    )
+    SELECT
+        cqc_uuid5('org_types:' || name) AS _id,
+        name
+    FROM (SELECT DISTINCT name FROM raw)
+    ORDER BY name;
+    """,
+
+    """
+    CREATE OR REPLACE TABLE inspection_categories AS
+    WITH raw AS (
+        SELECT trim(primaryInspectionCategory) AS name FROM locations_raw WHERE primaryInspectionCategory IS NOT NULL AND trim(primaryInspectionCategory) NOT IN ('', '-')
+        UNION
+        SELECT trim(providerPrimaryInspectionCategory) AS name FROM locations_raw WHERE providerPrimaryInspectionCategory IS NOT NULL AND trim(providerPrimaryInspectionCategory) NOT IN ('', '-')
+    )
+    SELECT
+        cqc_uuid5('inspection_categories:' || name) AS _id,
+        name
+    FROM (SELECT DISTINCT name FROM raw)
+    ORDER BY name;
+    """,
+
+    """
+    CREATE OR REPLACE TABLE inspection_directorates AS
+    WITH raw AS (
+        SELECT trim(inspectionDirectorate) AS name FROM locations_raw WHERE inspectionDirectorate IS NOT NULL AND trim(inspectionDirectorate) NOT IN ('', '-', 'Unspecified')
+        UNION
+        SELECT trim(providerInspectionDirectorate) AS name FROM locations_raw WHERE providerInspectionDirectorate IS NOT NULL AND trim(providerInspectionDirectorate) NOT IN ('', '-', 'Unspecified')
+    )
+    SELECT
+        cqc_uuid5('inspection_directorates:' || name) AS _id,
+        name
+    FROM (SELECT DISTINCT name FROM raw)
+    ORDER BY name;
+    """,
+
     """
     CREATE OR REPLACE TABLE brands AS
     WITH brands_clean AS (
-        SELECT brandId, brandName
+        SELECT
+            trim(brandId) AS _id,
+            regexp_replace(trim(brandName), '^BRAND ', '') AS name
         FROM locations_raw
-        WHERE brandId IS NOT NULL AND brandId <> '-'
+        WHERE brandId IS NOT NULL AND trim(brandId) NOT IN ('', '-')
     )
-    SELECT DISTINCT
-        brandId AS _id,
-        regexp_replace(brandName, '^BRAND ', '') AS name
+    SELECT _id, name
     FROM brands_clean
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY _id ORDER BY name NULLS LAST) = 1
     ORDER BY _id;
     """,
 
-    # Inspection directorate table
-    """
-    CREATE OR REPLACE TABLE inspection_directorates AS
-    SELECT
-        'ins' || LPAD(CAST(ROW_NUMBER() OVER (ORDER BY inspectionDirectorate) AS VARCHAR), 2, '0') AS _id,
-        inspectionDirectorate AS name
-    FROM (
-        SELECT DISTINCT inspectionDirectorate
-        FROM locations
-    )
-    ORDER BY name;
-    """
-
-    # GEOSPATIAL
-
-    # Filtered ONSPD table
+    # 4. Geospatial Hierarchy
     """
     CREATE OR REPLACE TABLE onspd_filtered AS
     WITH postcodes_unique AS (
-        SELECT postcode FROM locations WHERE postcode IS NOT NULL
+        SELECT trim(postcode) AS postcode FROM locations_raw WHERE postcode IS NOT NULL AND trim(postcode) <> ''
         UNION
-        SELECT postcode FROM providers WHERE postcode IS NOT NULL
+        SELECT trim(providerPostcode) AS postcode FROM locations_raw WHERE providerPostcode IS NOT NULL AND trim(providerPostcode) <> ''
     )
     SELECT o.*
     FROM onspd_raw o
     JOIN postcodes_unique u
-        ON o.pcds = u.postcode;
+        ON trim(o.pcds) = u.postcode;
     """,
 
-    # Full ONSPD table
     """
     CREATE OR REPLACE TABLE onspd AS
     SELECT f.*,
@@ -495,95 +393,330 @@ TRANSFORM_QUERIES = [
     LEFT JOIN nhser_raw nhs ON f.nhsercd = nhs.code;
     """,
 
-    # Postcodes table
-    """
-    CREATE OR REPLACE TABLE postcodes AS
-    SELECT DISTINCT
-        pcds AS _id,
-        ladcd,
-        lat,
-        long
-    FROM onspd;
-    """,
-
-    # Final local authorities table
-    """
-    CREATE OR REPLACE TABLE local_authorities AS
-    SELECT DISTINCT
-        ladcd AS _id,
-        ladnm AS name,
-        ctycd,
-        rgncd,
-        icbcd,
-        nhsercd,
-        lad_lat as lat,
-        lad_long as long,
-    FROM onspd
-    WHERE ladcd IS NOT NULL;
-    """,
-
-    # Final counties table
-    """
-    CREATE OR REPLACE TABLE counties AS
-    SELECT DISTINCT
-        ctycd AS _id,
-        ctynm AS name,
-        rgncd
-    FROM onspd
-    WHERE ctycd IS NOT NULL;
-    """,
-
-    # Final ICBs table
-    """
-    CREATE OR REPLACE TABLE icbs AS
-    SELECT DISTINCT
-        icbcd AS _id,
-        icbnm AS name
-    FROM onspd
-    WHERE icbcd IS NOT NULL;
-    """,
-
-    # Final regions table
     """
     CREATE OR REPLACE TABLE regions AS
-    SELECT DISTINCT
+    SELECT
         rgncd AS _id,
         rgnnm AS name
     FROM onspd
-    WHERE rgncd IS NOT NULL;
+    WHERE rgncd IS NOT NULL AND trim(rgncd) <> ''
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY rgncd ORDER BY rgnnm NULLS LAST) = 1;
     """,
 
-    # Final NHSER table
     """
     CREATE OR REPLACE TABLE nhser AS
-    SELECT DISTINCT
+    SELECT
         nhsercd AS _id,
         nhsernm AS name
     FROM onspd
-    WHERE nhsercd IS NOT NULL;
+    WHERE nhsercd IS NOT NULL AND trim(nhsercd) <> ''
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY nhsercd ORDER BY nhsernm NULLS LAST) = 1;
     """,
 
-    # Local authority by population
+    """
+    CREATE OR REPLACE TABLE icbs AS
+    SELECT
+        icbcd AS _id,
+        icbnm AS name
+    FROM onspd
+    WHERE icbcd IS NOT NULL AND trim(icbcd) <> ''
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY icbcd ORDER BY icbnm NULLS LAST) = 1;
+    """,
+
+    """
+    CREATE OR REPLACE TABLE counties AS
+    SELECT
+        c.ctycd AS _id,
+        c.ctynm AS name,
+        r._id AS rgncd
+    FROM onspd c
+    LEFT JOIN regions r ON c.rgncd = r._id
+    WHERE c.ctycd IS NOT NULL AND trim(c.ctycd) <> ''
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY c.ctycd ORDER BY c.ctynm NULLS LAST) = 1;
+    """,
+
+    """
+    CREATE OR REPLACE TABLE local_authorities AS
+    SELECT
+        la.ladcd AS _id,
+        la.ladnm AS name,
+        cty._id AS ctycd,
+        rgn._id AS rgncd,
+        icb._id AS icbcd,
+        nhs._id AS nhsercd,
+        TRY_CAST(la.lad_lat AS DOUBLE) AS lat,
+        TRY_CAST(la.lad_long AS DOUBLE) AS long
+    FROM onspd la
+    LEFT JOIN counties cty ON la.ctycd = cty._id
+    LEFT JOIN regions rgn ON la.rgncd = rgn._id
+    LEFT JOIN icbs icb ON la.icbcd = icb._id
+    LEFT JOIN nhser nhs ON la.nhsercd = nhs._id
+    WHERE la.ladcd IS NOT NULL AND trim(la.ladcd) <> ''
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY la.ladcd ORDER BY la.ladnm NULLS LAST) = 1;
+    """,
+
+    """
+    CREATE OR REPLACE TABLE postcodes AS
+    WITH onspd_pc AS (
+        SELECT
+            trim(p.pcds) AS _id,
+            la._id AS ladcd,
+            TRY_CAST(p.lat AS DOUBLE) AS lat,
+            TRY_CAST(p.long AS DOUBLE) AS long
+        FROM onspd p
+        LEFT JOIN local_authorities la ON p.ladcd = la._id
+        WHERE p.pcds IS NOT NULL AND trim(p.pcds) <> ''
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY trim(p.pcds) ORDER BY la._id NULLS LAST) = 1
+    ),
+    missing_pc AS (
+        SELECT DISTINCT trim(pc) AS _id
+        FROM (
+            SELECT postcode AS pc FROM locations_raw WHERE postcode IS NOT NULL AND trim(postcode) NOT IN ('', '-')
+            UNION
+            SELECT providerPostcode AS pc FROM locations_raw WHERE providerPostcode IS NOT NULL AND trim(providerPostcode) NOT IN ('', '-')
+        )
+        WHERE trim(pc) NOT IN (SELECT _id FROM onspd_pc)
+    )
+    SELECT _id, ladcd, lat, long FROM onspd_pc
+    UNION ALL
+    SELECT _id, NULL AS ladcd, NULL AS lat, NULL AS long FROM missing_pc;
+    """,
+
+    # 5. Core Entities (Providers & Locations with FKs resolved)
+    """
+    CREATE OR REPLACE TABLE providers AS
+    WITH raw_dedup AS (
+        SELECT *
+        FROM locations_raw
+        WHERE providerId IS NOT NULL AND trim(providerId) NOT IN ('', '-')
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY trim(providerId) ORDER BY providerName NULLS LAST) = 1
+    )
+    SELECT
+        trim(r.providerId) AS _id,
+        r.providerName AS name,
+        ot._id AS org_type_id,
+        id_dir._id AS inspection_directorate_id,
+        ic._id AS primary_inspection_category_id,
+        r.provideraddress AS address,
+        r.providercity AS city,
+        pc._id AS postcode,
+        r.providerParliamentaryConstituency AS parliamentary_constituency,
+        TRY_CAST(r.providerLat AS DOUBLE) AS lat,
+        TRY_CAST(r.providerLong AS DOUBLE) AS long,
+        CASE
+            WHEN r.providerPhone IS NULL OR trim(CAST(r.providerPhone AS VARCHAR)) IN ('', '-') THEN NULL
+            ELSE '0' || split_part(CAST(r.providerPhone AS VARCHAR), '.', 1)
+        END AS phone,
+        NULLIF(trim(r.providerUrl), '') AS url,
+        TRY_CAST(r.providerHscaStartDate AS DATE) AS hsca_start_date
+    FROM raw_dedup r
+    LEFT JOIN org_types ot ON trim(r.providerType) = ot.name
+    LEFT JOIN inspection_directorates id_dir ON trim(r.providerInspectionDirectorate) = id_dir.name
+    LEFT JOIN inspection_categories ic ON trim(r.providerPrimaryInspectionCategory) = ic.name
+    LEFT JOIN postcodes pc ON trim(r.providerPostcode) = pc._id;
+    """,
+
+    """
+    CREATE OR REPLACE TABLE locations AS
+    WITH raw_dedup AS (
+        SELECT *
+        FROM locations_raw
+        WHERE _id IS NOT NULL AND trim(_id) <> ''
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY trim(_id) ORDER BY name NULLS LAST) = 1
+    )
+    SELECT
+        trim(r._id) AS _id,
+        NULLIF(trim(r.odsCode), '') AS ods_code,
+        r.name AS name,
+        ot._id AS org_type_id,
+        CASE
+            WHEN upper(trim(r.dormant)) = 'Y' THEN TRUE
+            WHEN upper(trim(r.dormant)) = 'N' THEN FALSE
+            ELSE NULL
+        END AS dormant,
+        CASE
+            WHEN upper(trim(r.isCareHome)) = 'Y' THEN TRUE
+            WHEN upper(trim(r.isCareHome)) = 'N' THEN FALSE
+            ELSE NULL
+        END AS is_care_home,
+        TRY_CAST(r.careHomeBedCount AS INTEGER) AS care_home_bed_count,
+        id_dir._id AS inspection_directorate_id,
+        ic._id AS primary_inspection_category_id,
+        r.address AS address,
+        r.city AS city,
+        pc._id AS postcode,
+        r.parliamentaryConstituency AS parliamentary_constituency,
+        TRY_CAST(r.lat AS DOUBLE) AS lat,
+        TRY_CAST(r.long AS DOUBLE) AS long,
+        CASE
+            WHEN r.phone IS NULL OR trim(CAST(r.phone AS VARCHAR)) IN ('', '-') THEN NULL
+            ELSE '0' || split_part(CAST(r.phone AS VARCHAR), '.', 1)
+        END AS phone,
+        NULLIF(trim(r.url), '') AS url,
+        prv._id AS provider_id,
+        br._id AS brand_id,
+        CASE
+            WHEN upper(trim(r.dualRegistered)) = 'Y' THEN TRUE
+            WHEN upper(trim(r.dualRegistered)) = 'N' THEN FALSE
+            ELSE NULL
+        END AS dual_registered,
+        NULLIF(trim(r.dualRegistrationPID), '') AS dual_registration_pid,
+        TRY_CAST(r.hscaStartDate AS DATE) AS hsca_start_date
+    FROM raw_dedup r
+    LEFT JOIN org_types ot ON trim(r.type) = ot.name
+    LEFT JOIN inspection_directorates id_dir ON trim(r.inspectionDirectorate) = id_dir.name
+    LEFT JOIN inspection_categories ic ON trim(r.primaryInspectionCategory) = ic.name
+    LEFT JOIN postcodes pc ON trim(r.postcode) = pc._id
+    LEFT JOIN providers prv ON trim(r.providerId) = prv._id
+    LEFT JOIN brands br ON trim(r.brandId) = br._id;
+    """,
+
+    # 6. Bridge Tables (Many-to-Many)
+    """
+    CREATE OR REPLACE TABLE location_service_types AS
+    SELECT DISTINCT
+        l._id AS location_id,
+        st._id AS service_type_id
+    FROM locations_raw r
+    JOIN locations l ON trim(r._id) = l._id
+    CROSS JOIN UNNEST(r.serviceTypes) AS t(serviceType)
+    JOIN service_types st ON trim(t.serviceType) = st.name;
+    """,
+
+    """
+    CREATE OR REPLACE TABLE location_service_user_bands AS
+    SELECT DISTINCT
+        l._id AS location_id,
+        sub._id AS service_user_band_id
+    FROM locations_raw r
+    JOIN locations l ON trim(r._id) = l._id
+    CROSS JOIN UNNEST(r.serviceUserBands) AS t(serviceUserBand)
+    JOIN service_user_bands sub ON trim(t.serviceUserBand) = sub.name;
+    """,
+
+    """
+    CREATE OR REPLACE TABLE location_regulated_activities AS
+    SELECT DISTINCT
+        l._id AS location_id,
+        ra._id AS regulated_activity_id
+    FROM locations_raw r
+    JOIN locations l ON trim(r._id) = l._id
+    CROSS JOIN UNNEST(r.regulatedActivities) AS t(regulatedActivity)
+    JOIN regulated_activities ra ON trim(t.regulatedActivity) = ra.name;
+    """,
+
+    # 7. Time-Series / Fact Tables
+    """
+    CREATE OR REPLACE TABLE location_ratings AS
+    SELECT
+        cqc_uuid5(
+            'location_ratings:' || l._id || ':' ||
+            COALESCE(sg._id::VARCHAR, '') || ':' ||
+            COALESCE(rt._id::VARCHAR, '') || ':' ||
+            s.publicationDate::VARCHAR
+        ) AS _id,
+        l._id AS location_id,
+        rt._id AS report_type_id,
+        sg._id AS service_group_id,
+        NULLIF(trim(s.ratingSafe), '') AS rating_safe,
+        NULLIF(trim(s.ratingEffective), '') AS rating_effective,
+        NULLIF(trim(s.ratingCaring), '') AS rating_caring,
+        NULLIF(trim(s.ratingResponsive), '') AS rating_responsive,
+        NULLIF(trim(s.ratingWellLed), '') AS rating_well_led,
+        NULLIF(trim(s.ratingOverall), '') AS rating_overall,
+        CASE
+            WHEN upper(trim(s.inheritedRating)) = 'Y' THEN TRUE
+            WHEN upper(trim(s.inheritedRating)) = 'N' THEN FALSE
+            ELSE NULL
+        END AS inherited_rating,
+        s.publicationDate AS publication_date
+    FROM location_ratings_staged s
+    JOIN locations l ON trim(s.locationId) = l._id
+    LEFT JOIN report_types rt ON trim(s.reportType) = rt.name
+    LEFT JOIN service_groups sg ON trim(s.serviceGroup) = sg.name
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY l._id, sg._id, rt._id, s.publicationDate
+        ORDER BY s.publicationDate DESC
+    ) = 1;
+    """,
+
+    """
+    CREATE OR REPLACE TABLE provider_ratings AS
+    SELECT
+        cqc_uuid5(
+            'provider_ratings:' || p._id || ':' ||
+            COALESCE(sg._id::VARCHAR, '') || ':' ||
+            COALESCE(rt._id::VARCHAR, '') || ':' ||
+            s.publicationDate::VARCHAR
+        ) AS _id,
+        p._id AS provider_id,
+        rt._id AS report_type_id,
+        sg._id AS service_group_id,
+        NULLIF(trim(s.ratingSafe), '') AS rating_safe,
+        NULLIF(trim(s.ratingEffective), '') AS rating_effective,
+        NULLIF(trim(s.ratingCaring), '') AS rating_caring,
+        NULLIF(trim(s.ratingResponsive), '') AS rating_responsive,
+        NULLIF(trim(s.ratingWellLed), '') AS rating_well_led,
+        NULLIF(trim(s.ratingOverall), '') AS rating_overall,
+        CASE
+            WHEN upper(trim(s.inheritedRating)) = 'Y' THEN TRUE
+            WHEN upper(trim(s.inheritedRating)) = 'N' THEN FALSE
+            ELSE NULL
+        END AS inherited_rating,
+        s.publicationDate AS publication_date
+    FROM provider_ratings_staged s
+    JOIN providers p ON trim(s.providerId) = p._id
+    LEFT JOIN report_types rt ON trim(s.reportType) = rt.name
+    LEFT JOIN service_groups sg ON trim(s.serviceGroup) = sg.name
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY p._id, sg._id, rt._id, s.publicationDate
+        ORDER BY s.publicationDate DESC
+    ) = 1;
+    """,
+
     """
     CREATE OR REPLACE TABLE lad_populations AS
     SELECT
-        uuid() AS _id,
+        cqc_uuid5('lad_populations:' || la._id || ':' || pop.year::VARCHAR) AS _id,
         la._id AS ladcd,
-        pop.YEAR AS year,
-        pop.TOTAL AS totalPopulation,
-        pop."50-54",
-        pop."55-59",
-        pop."60-64",
-        pop."65-69",
-        pop."70-74",
-        pop."75-79",
-        pop."80-84",
-        pop."85-89",
-        pop."90+"
+        CAST(pop.year AS INTEGER) AS year,
+        CAST(pop.total AS INTEGER) AS total_population,
+        CAST(pop."50-54" AS INTEGER) AS age_50_54,
+        CAST(pop."55-59" AS INTEGER) AS age_55_59,
+        CAST(pop."60-64" AS INTEGER) AS age_60_64,
+        CAST(pop."65-69" AS INTEGER) AS age_65_69,
+        CAST(pop."70-74" AS INTEGER) AS age_70_74,
+        CAST(pop."75-79" AS INTEGER) AS age_75_79,
+        CAST(pop."80-84" AS INTEGER) AS age_80_84,
+        CAST(pop."85-89" AS INTEGER) AS age_85_89,
+        CAST(pop."90+" AS INTEGER) AS age_90_plus
     FROM lad_pop_raw pop
     JOIN local_authorities la
-        ON la._id = pop.code;
-        """,
+        ON la._id = trim(pop.code)
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY la._id, pop.year ORDER BY pop.total DESC) = 1;
+    """,
+
+    """
+    CREATE OR REPLACE TABLE lad_life_expectancy AS
+    SELECT
+        cqc_uuid5('lad_life_expectancy:' || la._id || ':' || le.interval) AS _id,
+        la._id AS ladcd,
+        CAST(le.start_year AS INTEGER) AS start_year,
+        trim(le.interval) AS interval,
+        le."50-54" AS age_50_54,
+        le."55-59" AS age_55_59,
+        le."60-64" AS age_60_64,
+        le."65-69" AS age_65_69,
+        le."70-74" AS age_70_74,
+        le."75-79" AS age_75_79,
+        le."80-84" AS age_80_84,
+        le."85-89" AS age_85_89,
+        le."90+" AS age_90_plus
+    FROM lad_life_exp_raw le
+    JOIN local_authorities la
+        ON la._id = trim(le.code)
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY la._id, le.interval ORDER BY le.start_year DESC) = 1;
+    """,
 ]
 
 
@@ -635,7 +768,12 @@ INITIALISE_RATINGS_QUERIES = [
         )
     )
     SELECT
-        uuid() AS _id,
+        cqc_uuid5(
+            'past_location_ratings:' || b.cqcId || ':' ||
+            COALESCE(b.serviceGroup, '') || ':' ||
+            COALESCE(b.reportType, '') || ':' ||
+            COALESCE(b.publicationDate::VARCHAR, '')
+        ) AS _id,
         b.cqcId AS locationId,
         b.reportType,
         b.serviceGroup,
@@ -694,7 +832,12 @@ INITIALISE_RATINGS_QUERIES = [
         )
     )
     SELECT
-        uuid() AS _id,
+        cqc_uuid5(
+            'past_provider_ratings:' || b.cqcId || ':' ||
+            COALESCE(b.serviceGroup, '') || ':' ||
+            COALESCE(b.reportType, '') || ':' ||
+            COALESCE(b.publicationDate::VARCHAR, '')
+        ) AS _id,
         b.cqcId AS providerId,
         b.reportType,
         b.serviceGroup,
@@ -710,120 +853,3 @@ INITIALISE_RATINGS_QUERIES = [
     LEFT JOIN pivoted p USING (cqcId, serviceGroup);
     """,
 ]
-
-
-# CYPHER QUERIES
-
-def build_simple_query(source_label, source_prop, target_label, target_prop, rel):
-    """Simple fan out relationships query."""
-    return f"""
-        MATCH (source:{source_label})
-        WHERE source._id IN $ids
-        OPTIONAL MATCH (source)-[old_rel:{rel}]->()
-        DELETE old_rel
-        WITH source
-        WHERE source.{source_prop} IS NOT NULL
-        UNWIND source.{source_prop} AS value
-        MATCH (target:{target_label} {{{target_prop}: value}})
-        MERGE (source)-[:{rel}]->(target)
-        RETURN count(*) AS relationships_created
-    """
-
-
-def build_time_series_query(
-    source_label, source_prop, target_label, target_prop,
-    rel, timestamp_field, discriminators, rel_properties
-):
-    """Time series chained query."""
-    disc_with = ", ".join([f"target.{d} AS {d}" for d in discriminators])
-    order_by = ", ".join([*discriminators, f"target.{timestamp_field} DESC"])
-    group_with = ", ".join(["source", *discriminators, "collect(target) AS ts"])
-
-    if rel_properties:
-        props = ", ".join(f"{p}: latest.{p}" for p in rel_properties)
-        rel_props_set = f"SET r += {{{props}}}"
-    else:
-        rel_props_set = ""
-
-    return f"""
-        MATCH (source:{source_label})
-        WHERE source._id IN $ids
-
-        OPTIONAL MATCH (target_to_clear:{target_label} {{{target_prop}: source.{source_prop}}})
-        OPTIONAL MATCH (source)-[old_rel:{rel}]->(target_to_clear)
-        OPTIONAL MATCH (target_to_clear)-[old_prev:PREVIOUS]->(:{target_label})
-        DELETE old_rel, old_prev
-
-        WITH DISTINCT source
-        WHERE source.{source_prop} IS NOT NULL
-        MATCH (target:{target_label} {{{target_prop}: source.{source_prop}}})
-        {"WITH source, target, " + disc_with if disc_with else "WITH source, target"}
-        ORDER BY {order_by}
-
-        WITH {group_with}
-
-        FOREACH (i IN range(0, size(ts)-2) |
-          FOREACH (curr IN [ts[i]] |
-            FOREACH (prev IN [ts[i+1]] |
-              MERGE (curr)-[:PREVIOUS]->(prev)
-            )
-          )
-        )
-
-        WITH source, ts
-        WHERE size(ts) > 0
-        WITH source, head(ts) AS latest
-        MERGE (source)-[r:{rel}]->(latest)
-        {rel_props_set}
-        RETURN count(DISTINCT r) AS relationships_created
-    """
-
-
-def build_time_series_query_apoc(
-    source_label, source_prop, target_label, target_prop,
-    rel, timestamp_field, discriminators, rel_properties
-):
-    # Build discriminator WITH clause
-    disc_with = ", ".join([f"target.{d} AS {d}" for d in discriminators])
-    order_by = ", ".join([*discriminators, f"target.{timestamp_field} DESC"])
-    group_with = ", ".join(["source", *discriminators, "collect(target) AS ts"])
-
-    # Relationship properties copied from latest node
-    if rel_properties:
-        props = ", ".join(f"{p}: latest.{p}" for p in rel_properties)
-        rel_props_set = f"SET r += {{{props}}}"
-    else:
-        rel_props_set = ""
-
-    return f"""
-        // 1. Match updated sources
-        MATCH (source:{source_label})
-        WHERE source._id IN $ids
-
-        // 2. Clear existing relationships and PREVIOUS chains
-        OPTIONAL MATCH (target_to_clear:{target_label} {{{target_prop}: source.{source_prop}}})
-        OPTIONAL MATCH (source)-[old_rel:{rel}]->(target_to_clear)
-        OPTIONAL MATCH (target_to_clear)-[old_prev:PREVIOUS]->(:{target_label})
-        DELETE old_rel, old_prev
-
-        // 3. Re-match all relevant targets
-        WITH DISTINCT source
-        WHERE source.{source_prop} IS NOT NULL
-        MATCH (target:{target_label} {{{target_prop}: source.{source_prop}}})
-        {"WITH source, target, " + disc_with if disc_with else "WITH source, target"}
-        ORDER BY {order_by}
-
-        // 4. Group into time-series buckets
-        WITH {group_with}
-
-        // 5. Build PREVIOUS chain using APOC
-        WHERE size(ts) > 0
-        CALL apoc.nodes.link(ts, 'PREVIOUS') YIELD nodes
-
-        // 6. Attach source -> latest
-        WITH source, head(ts) AS latest
-        MERGE (source)-[r:{rel}]->(latest)
-        {rel_props_set}
-
-        RETURN count(DISTINCT r) AS relationships_created
-    """

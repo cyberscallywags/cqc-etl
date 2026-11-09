@@ -220,3 +220,4 @@ data/archive
 modeling/
 _deprecated/
 _testing/
+.idea/

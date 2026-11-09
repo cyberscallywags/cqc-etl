@@ -16,3 +16,5 @@ pyexcel-ods
 watchdog
 duckdb
 polars
+psycopg[binary]
+rich

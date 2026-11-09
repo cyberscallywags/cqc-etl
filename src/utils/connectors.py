@@ -1,22 +1,88 @@
 """Connection utility functions"""
 
 # Imports
+import functools
 import os
 import time
-import functools
 
 import duckdb
-from neo4j import GraphDatabase, AsyncGraphDatabase, AsyncDriver
-from neo4j.exceptions import (
-    AuthError, ServiceUnavailable, DatabaseUnavailable,
-    TransientError, SessionExpired
-)
-from requests.exceptions import (
-    ConnectionError as RequestsConnectionError, Timeout,
-    HTTPError
-)
 from loguru import logger
-from src.config import neo4j_uri, neo4j_user, neo4j_pwd, INTERIM_DATA_DIR
+from neo4j import AsyncDriver, AsyncGraphDatabase, GraphDatabase
+from neo4j.exceptions import (
+    AuthError,
+    DatabaseUnavailable,
+    ServiceUnavailable,
+    SessionExpired,
+    TransientError,
+)
+import psycopg
+from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import HTTPError, Timeout
+
+from src.config import (
+    INTERIM_DATA_DIR,
+    neo4j_pwd,
+    neo4j_uri,
+    neo4j_user,
+    pg_db,
+    pg_host,
+    pg_port,
+    pg_pwd,
+    pg_user,
+)
+
+
+class PostgresDB:
+    """PostgreSQL connection functions."""
+    def __init__(self):
+        if not all([pg_host, pg_db, pg_user]):
+            raise ValueError("LOCAL_PG_HOST, LOCAL_PG_DB, and LOCAL_PG_USER must be set in .env")
+
+        self.host = pg_host
+        self.dbname = pg_db
+        self.user = pg_user
+        self.password = pg_pwd
+        self.port = pg_port
+
+    def connect(self, autocommit: bool = False) -> psycopg.Connection:
+        """Create synchronous PostgreSQL connection."""
+        try:
+            conn = psycopg.connect(
+                host=self.host,
+                dbname=self.dbname,
+                user=self.user,
+                password=self.password,
+                port=self.port,
+                autocommit=autocommit,
+            )
+            logger.info(f"Connected to PostgreSQL database '{self.dbname}' at {self.host}:{self.port}")
+            return conn
+        except psycopg.Error as e:
+            logger.error(f"Failed to connect to PostgreSQL: {e}")
+            raise
+
+    @staticmethod
+    def ensure_postgis(conn: psycopg.Connection) -> bool:
+        """
+        Enable PostGIS extension if installed on the server.
+        Returns True if PostGIS is active, False if falling back to native POINT.
+        """
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM pg_available_extensions WHERE name = 'postgis';"
+            )
+            available = cur.fetchone() is not None
+            if available:
+                cur.execute("CREATE EXTENSION IF NOT EXISTS postgis;")
+                conn.commit()
+                logger.info("PostGIS extension enabled.")
+                return True
+
+            logger.warning(
+                "PostGIS extension is not installed on the PostgreSQL server; "
+                "using native PostgreSQL POINT for geometry columns."
+            )
+            return False
 
 
 class AuraDB:
@@ -57,10 +123,23 @@ class AuraDB:
 
 
 def connect_duckdb():
-    """Create/connect to local DuckDB database and return connection."""
+    """Create/connect to local DuckDB database, register macros, and return connection."""
     try:
         os.makedirs(INTERIM_DATA_DIR, exist_ok=True)
         con = duckdb.connect(INTERIM_DATA_DIR / "cqc.duckdb")
+        con.execute(
+            """
+            CREATE OR REPLACE MACRO cqc_uuid5(name) AS (
+                concat(
+                    substr(sha1(concat('cqc-etl:', name)), 1, 8), '-',
+                    substr(sha1(concat('cqc-etl:', name)), 9, 4), '-5',
+                    substr(sha1(concat('cqc-etl:', name)), 14, 3), '-a',
+                    substr(sha1(concat('cqc-etl:', name)), 18, 3), '-',
+                    substr(sha1(concat('cqc-etl:', name)), 21, 12)
+                )::UUID
+            );
+            """
+        )
         logger.info("Connected to CQC DuckDB database.")
         return con
 

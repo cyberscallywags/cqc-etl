@@ -1,18 +1,18 @@
-"""Transform CQC directory data"""
+"""Transform CQC directory data in DuckDB and upsert into PostgreSQL Source of Truth."""
 
 # Imports
-import time
-import shutil
 import datetime
-from loguru import logger
-from src.utils.files import RawPipeline
-from src.utils.connectors import connect_duckdb
-from src.utils.queries import load_schema, run_queries
-from src.utils.transforms import create_dfs, export_tables, transform_cleanup
-from src.config import (
-    RAW_DATA_DIR, CORE_DATA_DIR, PROCESSED_DATA_DIR, INTERIM_DATA_DIR, ARCHIVE_DATA_DIR
-    )
+import shutil
+import time
 
+from loguru import logger
+
+from src.config import ARCHIVE_DATA_DIR, CORE_DATA_DIR, INTERIM_DATA_DIR, RAW_DATA_DIR
+from src.load_postgres import sync_duckdb_to_postgres
+from src.utils.connectors import connect_duckdb
+from src.utils.files import RawPipeline
+from src.utils.queries import load_schema, run_queries
+from src.utils.transforms import create_dfs, transform_cleanup
 
 file_registry = {
     "onspd": CORE_DATA_DIR / "lookups/ONSPD_NOV_2025_UK.parquet",
@@ -22,6 +22,7 @@ file_registry = {
     "regions": CORE_DATA_DIR / "lookups/RGN Region names and codes EN as at 05_25.csv",
     "nhser": CORE_DATA_DIR / "lookups/NHSER NHS England Region names and codes EN as at 04_24.csv",
     "lad_pop": CORE_DATA_DIR / "lookups/LAD Populations by Age (1991-2021).csv",
+    "lad_life_exp": CORE_DATA_DIR / "lookups/Life Expectancy by LAD ts.parquet",
     "past_location_ratings": ARCHIVE_DATA_DIR / "past_location_ratings.parquet",
     "past_provider_ratings": ARCHIVE_DATA_DIR / "past_provider_ratings.parquet",
 }
@@ -29,27 +30,27 @@ file_registry = {
 no_rename = ["past_location_ratings", "past_provider_ratings", "location_bools"]
 
 
-
 if __name__ == "__main__":
     start = time.perf_counter()
-    started_at = datetime.datetime.now().isoformat()
-    logger.info(f"Started transformation pipeline. Time: {started_at}")
-
-    # Create timestamp
-    timestamp = datetime.datetime.now().isoformat()
+    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    logger.info(f"Started transformation pipeline. Time: {timestamp}")
 
     # Convert Excel/ODS files if present and add to file registry
-    file_registry = (file_registry | RawPipeline(RAW_DATA_DIR, load_schema("raw_01")).run())
+    file_registry = file_registry | RawPipeline(RAW_DATA_DIR, load_schema("raw_01")).run()
 
-    # Connect to DuckDB and execute queries
+    # Connect to DuckDB and execute transformation queries
     con = connect_duckdb()
-    create_dfs(con, file_registry, load_schema("transform_01"),
-               exclude=no_rename, cleanup_fn=transform_cleanup)
+    create_dfs(
+        con,
+        file_registry,
+        load_schema("transform_01"),
+        exclude=no_rename,
+        cleanup_fn=transform_cleanup,
+    )
     run_queries(con, select="transform")
 
-    # Export tables
-    TABLES_TO_EXPORT = list(load_schema("aura_01")["filemap"].keys())
-    export_tables(TABLES_TO_EXPORT, PROCESSED_DATA_DIR, timestamp)
+    # Sync transformed tables into PostgreSQL (Source of Truth)
+    sync_duckdb_to_postgres(con, timestamp=timestamp)
     con.close()
 
     # Delete temp directory
@@ -57,4 +58,4 @@ if __name__ == "__main__":
     logger.info(f"Deleted interim directory: {INTERIM_DATA_DIR}")
 
     end = time.perf_counter()
-    logger.success(f"Transformation pipeline complete. Runtime: {end - start} seconds")
+    logger.success(f"Transformation and PostgreSQL load complete. Runtime: {end - start:.2f} seconds")
